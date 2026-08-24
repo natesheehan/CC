@@ -52,13 +52,20 @@ locally.
 
 ## Deploying to Vercel
 
-1. **Create a Turso database** (the free tier is plenty to start):
+1. **Create a Turso database** (the free tier is plenty to start). The Turso CLI installs
+   via a shell script, not npm:
    ```bash
-   npx @tursodatabase/turso auth login
-   npx @tursodatabase/turso db create concept-cartography
-   npx @tursodatabase/turso db show concept-cartography --url
-   npx @tursodatabase/turso db tokens create concept-cartography
+   curl -sSfL https://get.tur.so/install.sh | bash   # or: brew install tursodatabase/tap/turso
+
+   turso auth login
+   turso db create concept-cartography
+   turso db show concept-cartography --url
+   turso db tokens create concept-cartography
    ```
+   Alternatively, skip the CLI entirely and use Vercel's own integration: in your Vercel
+   project, go to **Storage** (or **Integrations** → Marketplace) → add **Turso** — it
+   provisions the database and wires up env vars for you (as `TURSO_DATABASE_URL` /
+   `TURSO_AUTH_TOKEN`, which this app also recognizes automatically).
 2. In your Vercel project's **Settings → Environment Variables**, add:
 
    | Variable              | Value                                       |

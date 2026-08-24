@@ -15,7 +15,7 @@
 					<circle cx="12" cy="18" r="3" fill="currentColor" opacity="0.8" />
 					<path d="M8.5 7.5L15.5 7.5M7.5 8.5L11 16M16.5 8.5L13 16" stroke="currentColor" stroke-width="1.5" />
 				</svg>
-				<span>Concept Cartography - Nathanael Sheehan</span>
+				<span>Concept Cartography</span>
 			</a>
 
 			{#if data.user}

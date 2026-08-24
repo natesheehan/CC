@@ -7,10 +7,40 @@ import * as schema from './schema';
 // Same client works two ways, controlled entirely by env vars:
 //  - Local dev (default): DATABASE_URL unset -> a local file, e.g. file:./data/conceptmap.db
 //  - Production (Turso):  DATABASE_URL=libsql://<db>.turso.io  DATABASE_AUTH_TOKEN=<token>
-const DATABASE_URL = process.env.DATABASE_URL ?? 'file:./data/conceptmap.db';
-const DATABASE_AUTH_TOKEN = process.env.DATABASE_AUTH_TOKEN;
+//
+// Also accepts TURSO_DATABASE_URL / TURSO_AUTH_TOKEN as a fallback, since
+// that's what Vercel's own "Turso" Marketplace integration names them —
+// so this works whether you wired up the env vars by hand or via that
+// integration, without needing to rename anything.
+const DATABASE_URL =
+	process.env.DATABASE_URL ?? process.env.TURSO_DATABASE_URL ?? 'file:./data/conceptmap.db';
+const DATABASE_AUTH_TOKEN = process.env.DATABASE_AUTH_TOKEN ?? process.env.TURSO_AUTH_TOKEN;
+const explicitUrlProvided = Boolean(process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL);
 
-if (DATABASE_URL.startsWith('file:')) {
+// Vercel (and most serverless platforms) set one of these automatically.
+// Their filesystem is read-only outside of /tmp, so a local SQLite file can
+// never be created there. If DATABASE_URL hasn't been configured in this
+// environment, fail immediately with a clear message instead of letting the
+// local-file fallback crash later with a cryptic ENOENT/EROFS from mkdir.
+const isServerless = Boolean(
+	process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY
+);
+
+if (isServerless && !explicitUrlProvided) {
+	throw new Error(
+		'DATABASE_URL is not set. On Vercel (or any serverless platform) this app needs a ' +
+			'hosted libSQL database — a local SQLite file cannot be written to a serverless ' +
+			"filesystem. In your Vercel project, go to Settings → Environment Variables and " +
+			'add DATABASE_URL and DATABASE_AUTH_TOKEN (or TURSO_DATABASE_URL / TURSO_AUTH_TOKEN ' +
+			'if you used the Vercel Turso Marketplace integration) — see the README\'s ' +
+			'"Deploying to Vercel" section. Make sure the variables are enabled for the ' +
+			'environment you\'re deploying to (Production and/or Preview), then redeploy — ' +
+			'env var changes only take effect on new deployments, not automatically on ' +
+			'existing ones.'
+	);
+}
+
+if (DATABASE_URL.startsWith('file:') && !isServerless) {
 	const filePath = DATABASE_URL.slice('file:'.length);
 	const dir = dirname(filePath);
 	if (dir && dir !== '.' && !existsSync(dir)) mkdirSync(dir, { recursive: true });
