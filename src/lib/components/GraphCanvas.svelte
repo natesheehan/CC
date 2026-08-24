@@ -46,6 +46,7 @@
 
 	let pan = $state({ x: 0, y: 0 });
 	let zoom = $state(1);
+	let rotation = $state(0); // degrees, clockwise
 
 	const nodesById = $derived(new Map(simNodes.map((n) => [n.id, n])));
 
@@ -154,12 +155,20 @@
 	});
 
 	// --- coordinate helpers ---------------------------------------------------
+	// The graph content is drawn under `translate(pan) rotate(rotation) scale(zoom)`,
+	// so converting a screen point back to graph space means undoing those in
+	// reverse order: subtract the pan, un-rotate, then un-scale.
 	function screenToGraph(clientX: number, clientY: number) {
 		if (!container) return { x: 0, y: 0 };
 		const rect = container.getBoundingClientRect();
+		const dx = clientX - rect.left - pan.x;
+		const dy = clientY - rect.top - pan.y;
+		const rad = (-rotation * Math.PI) / 180;
+		const cos = Math.cos(rad);
+		const sin = Math.sin(rad);
 		return {
-			x: (clientX - rect.left - pan.x) / zoom,
-			y: (clientY - rect.top - pan.y) / zoom
+			x: (dx * cos - dy * sin) / zoom,
+			y: (dx * sin + dy * cos) / zoom
 		};
 	}
 
@@ -220,16 +229,27 @@
 		const rect = container.getBoundingClientRect();
 		const sx = e.clientX - rect.left;
 		const sy = e.clientY - rect.top;
-		const gx = (sx - pan.x) / zoom;
-		const gy = (sy - pan.y) / zoom;
+		const { x: gx, y: gy } = screenToGraph(e.clientX, e.clientY);
 		const next = Math.min(3, Math.max(0.25, zoom * (e.deltaY < 0 ? 1.12 : 0.89)));
-		pan = { x: sx - gx * next, y: sy - gy * next };
+		// Re-derive where (gx, gy) would land on screen at the new zoom, and
+		// shift pan so that point stays fixed under the cursor.
+		const rad = (rotation * Math.PI) / 180;
+		const cos = Math.cos(rad);
+		const sin = Math.sin(rad);
+		const rx = gx * next * cos - gy * next * sin;
+		const ry = gx * next * sin + gy * next * cos;
+		pan = { x: sx - rx, y: sy - ry };
 		zoom = next;
 	}
 
 	export function resetView() {
 		pan = { x: 0, y: 0 };
 		zoom = 1;
+		rotation = 0;
+	}
+
+	export function rotateView() {
+		rotation = (rotation + 90) % 360;
 	}
 
 	export function reArrange() {
@@ -273,7 +293,7 @@
 			{/each}
 		</defs>
 
-		<g transform="translate({pan.x} {pan.y}) scale({zoom})">
+		<g transform="translate({pan.x} {pan.y}) rotate({rotation}) scale({zoom})">
 			{#each simLinks as link (link.id)}
 				{@const s = resolveEnd(link.source)}
 				{@const t = resolveEnd(link.target)}
@@ -330,20 +350,42 @@
 		</g>
 	</svg>
 
-	<!-- Zoom controls -->
-	<div class="absolute bottom-4 right-4 flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+	<!-- Zoom / rotate controls. `onpointerdown|stopPropagation` here is what
+	     makes these buttons clickable at all: without it, a pointerdown on a
+	     button first bubbles up to the background div's own onpointerdown,
+	     which calls setPointerCapture() on itself for panning — and once a
+	     container captures the pointer, the browser redirects that pointer's
+	     entire event sequence (including the click) away from the button
+	     that was actually pressed. Stopping propagation here keeps that pan
+	     handler from ever engaging for clicks that start on the controls. -->
+	<div
+		class="absolute bottom-4 right-4 flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+		role="toolbar"
+		aria-label="Map view controls"
+		tabindex="-1"
+		onpointerdown={(e) => e.stopPropagation()}
+	>
 		<button
-			class="flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-slate-100"
+			type="button"
+			class="flex h-8 w-8 items-center justify-center rounded text-lg text-slate-600 hover:bg-slate-100"
 			onclick={() => (zoom = Math.min(3, zoom * 1.2))}
 			aria-label="Zoom in">+</button
 		>
 		<button
-			class="flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-slate-100"
+			type="button"
+			class="flex h-8 w-8 items-center justify-center rounded text-lg text-slate-600 hover:bg-slate-100"
 			onclick={() => (zoom = Math.max(0.25, zoom * 0.8))}
 			aria-label="Zoom out">−</button
 		>
 		<button
-			class="flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-slate-100"
+			type="button"
+			class="flex h-8 w-8 items-center justify-center rounded text-lg text-slate-600 hover:bg-slate-100"
+			onclick={rotateView}
+			aria-label="Rotate view 90°">⟳</button
+		>
+		<button
+			type="button"
+			class="flex h-8 w-8 items-center justify-center rounded text-lg text-slate-600 hover:bg-slate-100"
 			onclick={resetView}
 			aria-label="Reset view">⤾</button
 		>
