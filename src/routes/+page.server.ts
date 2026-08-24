@@ -11,9 +11,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		throw redirect(303, `/login?redirectTo=${encodeURIComponent(url.pathname)}`);
 	}
 
-	return {
-		maps: await listMapsWithStats()
-	};
+	const allMaps = await listMapsWithStats();
+	const myMaps = allMaps.filter((m) => m.createdById === locals.user!.id);
+	const otherMaps = allMaps.filter((m) => m.createdById !== locals.user!.id);
+
+	return { myMaps, otherMaps };
 };
 
 export const actions: Actions = {

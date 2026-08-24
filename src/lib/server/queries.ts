@@ -14,6 +14,7 @@ export async function listMapsWithStats() {
 			description: maps.description,
 			createdAt: maps.createdAt,
 			updatedAt: maps.updatedAt,
+			createdById: maps.createdBy,
 			createdByName: users.name,
 			conceptCount: sql<number>`(select count(*) from concepts where concepts.map_id = maps.id)`,
 			relationCount: sql<number>`(select count(*) from concept_relations where concept_relations.map_id = maps.id)`

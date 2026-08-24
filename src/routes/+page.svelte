@@ -29,9 +29,9 @@
 		</button>
 	</div>
 
-	{#if data.maps.length === 0}
+	{#if data.myMaps.length === 0 && data.otherMaps.length === 0}
 		<div class="mt-16 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-20 text-center">
-			<p class="text-slate-500">No maps yet. Create your first one to get started.</p>
+			<p class="text-slate-500">No maps yet. Create the first one to get started.</p>
 			<button
 				onclick={() => (showCreate = true)}
 				class="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -40,29 +40,55 @@
 			</button>
 		</div>
 	{:else}
-		<div class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-			{#each data.maps as map (map.id)}
-				<a
-					href="/maps/{map.id}"
-					class="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-				>
-					<h2 class="font-semibold text-slate-800 group-hover:text-blue-600">{map.name}</h2>
-					{#if map.description}
-						<p class="mt-1 line-clamp-2 text-sm text-slate-500">{map.description}</p>
-					{/if}
-					<div class="mt-4 flex items-center gap-4 text-xs text-slate-500">
-						<span>{map.conceptCount} concept{map.conceptCount === 1 ? '' : 's'}</span>
-						<span>{map.relationCount} link{map.relationCount === 1 ? '' : 's'}</span>
-					</div>
-					<div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-400">
-						<span>by {map.createdByName ?? 'unknown'}</span>
-						<span>updated {relativeTime(map.updatedAt)}</span>
-					</div>
-				</a>
-			{/each}
-		</div>
+		<section class="mt-8">
+			<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">
+				Your maps ({data.myMaps.length})
+			</h2>
+			{#if data.myMaps.length === 0}
+				<p class="mt-3 text-sm text-slate-400">
+					You haven't created a map yet — start one, or explore the maps below.
+				</p>
+			{:else}
+				{@render mapGrid(data.myMaps)}
+			{/if}
+		</section>
+
+		<section class="mt-10">
+			<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">
+				Other maps ({data.otherMaps.length})
+			</h2>
+			{#if data.otherMaps.length === 0}
+				<p class="mt-3 text-sm text-slate-400">No other maps have been created yet.</p>
+			{:else}
+				{@render mapGrid(data.otherMaps)}
+			{/if}
+		</section>
 	{/if}
 </div>
+
+{#snippet mapGrid(maps: PageData['myMaps'])}
+	<div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+		{#each maps as map (map.id)}
+			<a
+				href="/maps/{map.id}"
+				class="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+			>
+				<h3 class="font-semibold text-slate-800 group-hover:text-blue-600">{map.name}</h3>
+				{#if map.description}
+					<p class="mt-1 line-clamp-2 text-sm text-slate-500">{map.description}</p>
+				{/if}
+				<div class="mt-4 flex items-center gap-4 text-xs text-slate-500">
+					<span>{map.conceptCount} concept{map.conceptCount === 1 ? '' : 's'}</span>
+					<span>{map.relationCount} link{map.relationCount === 1 ? '' : 's'}</span>
+				</div>
+				<div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-400">
+					<span>by {map.createdByName ?? 'unknown'}</span>
+					<span>updated {relativeTime(map.updatedAt)}</span>
+				</div>
+			</a>
+		{/each}
+	</div>
+{/snippet}
 
 {#if showCreate}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
