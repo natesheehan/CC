@@ -4,11 +4,13 @@ import { db } from '$lib/server/db';
 import { concepts, maps, users } from '$lib/server/db/schema';
 import { logActivity } from '$lib/server/activity';
 import type { RequestHandler } from './$types';
+import { rateLimitUserWrite } from '$lib/server/rateLimit';
 
 const CONTENT_FIELDS = ['name', 'definition', 'literatureLink', 'example', 'quizQuestion'] as const;
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await rateLimitUserWrite(locals.user.id); 
 
 	const existing = await db
 		.select()

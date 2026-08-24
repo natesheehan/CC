@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { getOrCreateUser, createSession } from '$lib/server/auth';
+import { checkLoginRateLimit } from '$lib/server/rateLimit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -10,7 +11,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ request, cookies, url }) => {
+	default: async ({ request, cookies, url, getClientAddress }) => {
+		const rateLimitMessage = await checkLoginRateLimit(getClientAddress());
+		if (rateLimitMessage) {
+			return fail(429, { error: rateLimitMessage, name: '' });
+		}
+
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 

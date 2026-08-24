@@ -4,9 +4,11 @@ import { db } from '$lib/server/db';
 import { maps } from '$lib/server/db/schema';
 import { logActivity } from '$lib/server/activity';
 import type { RequestHandler } from './$types';
+import { rateLimitUserWrite } from '$lib/server/rateLimit';
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await rateLimitUserWrite(locals.user.id);  
 
 	const existing = await db.select().from(maps).where(eq(maps.id, params.id)).get();
 	if (!existing) throw error(404, 'Map not found');
@@ -43,6 +45,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await rateLimitUserWrite(locals.user.id);  
 
 	const existing = await db.select().from(maps).where(eq(maps.id, params.id)).get();
 	if (!existing) throw error(404, 'Map not found');

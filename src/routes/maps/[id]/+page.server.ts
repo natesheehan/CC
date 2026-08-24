@@ -4,6 +4,7 @@ import { getMapActivity } from '$lib/server/activity';
 import type { PageServerLoad } from './$types';
 import type { ClientActivityEntry, ClientConcept, ClientRelation } from '$lib/shared/types';
 
+
 export const load: PageServerLoad = async ({ params, locals, url }) => {
 	if (!locals.user) {
 		throw redirect(303, `/login?redirectTo=${encodeURIComponent(url.pathname)}`);

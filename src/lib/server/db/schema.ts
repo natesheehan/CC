@@ -89,9 +89,21 @@ export const activityLog = sqliteTable('activity_log', {
 	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
 });
 
+// Fixed-window rate limiting, backed by the database rather than in-memory
+// state. Necessary because the app runs as serverless functions (Vercel) —
+// a request can land on a different, freshly-cold process each time, so an
+// in-memory counter would silently fail to limit anything in production.
+// One row per (bucket key), reused/reset every window via upsert.
+export const rateLimits = sqliteTable('rate_limits', {
+	key: text('key').primaryKey(), // e.g. "write:<userId>" or "login:<ip>"
+	windowStart: integer('window_start').notNull(),
+	count: integer('count').notNull()
+});
+
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type MapRow = typeof maps.$inferSelect;
 export type Concept = typeof concepts.$inferSelect;
 export type ConceptRelation = typeof conceptRelations.$inferSelect;
+export type RateLimit = typeof rateLimits.$inferSelect;
 export type ActivityEntry = typeof activityLog.$inferSelect;

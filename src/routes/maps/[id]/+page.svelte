@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidateAll, goto } from '$app/navigation';
+	import { untrack } from 'svelte';
 	import GraphCanvas from '$lib/components/GraphCanvas.svelte';
 	import ConceptPanel from '$lib/components/ConceptPanel.svelte';
 	import ConceptFormModal from '$lib/components/ConceptFormModal.svelte';
@@ -90,7 +91,81 @@
 			body: JSON.stringify({ x, y })
 		}).catch(() => {});
 	}
+
+	// --- rename map -------------------------------------------------------------
+	let editingMapName = $state(false);
+	let mapNameDraft = $state(untrack(() => data.map.name));
+	let savingMapName = $state(false);
+	let mapNameError = $state('');
+	let mapNameInputEl: HTMLInputElement | undefined = $state();
+
+	function startEditingMapName() {
+		mapNameDraft = data.map.name;
+		mapNameError = '';
+		editingMapName = true;
+	}
+
+	$effect(() => {
+		if (editingMapName) mapNameInputEl?.focus();
+	});
+
+	async function saveMapName() {
+		const name = mapNameDraft.trim();
+		if (!name || name === data.map.name) {
+			editingMapName = false;
+			return;
+		}
+		savingMapName = true;
+		mapNameError = '';
+		try {
+			await api(`/maps/${data.map.id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+			await invalidateAll();
+			editingMapName = false;
+		} catch (err) {
+			mapNameError = err instanceof Error ? err.message : 'Could not rename the map.';
+		}
+		savingMapName = false;
+	}
+
+	// --- delete map -------------------------------------------------------------
+	let confirmDeleteMap = $state(false);
+	let deletingMap = $state(false);
+	let deleteMapError = $state('');
+
+	async function deleteMap() {
+		deletingMap = true;
+		deleteMapError = '';
+		try {
+			await api(`/maps/${data.map.id}`, { method: 'DELETE' });
+			await goto('/');
+		} catch (err) {
+			deleteMapError = err instanceof Error ? err.message : 'Could not delete the map.';
+			deletingMap = false;
+		}
+	}
+
+	// --- export -------------------------------------------------------------
+	let showExportMenu = $state(false);
+	let exportMenuEl: HTMLDivElement | undefined = $state();
+
+	function exportAs(kind: 'svg' | 'png') {
+		const filename = `${data.map.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'concept-map'}.${kind}`;
+		if (kind === 'svg') {
+			graphRef?.exportSVG(filename);
+		} else {
+			graphRef?.exportPNG(filename);
+		}
+		showExportMenu = false;
+	}
+
+	function onWindowClick(e: MouseEvent) {
+		if (showExportMenu && exportMenuEl && !exportMenuEl.contains(e.target as Node)) {
+			showExportMenu = false;
+		}
+	}
 </script>
+
+<svelte:window onclick={onWindowClick} />
 
 <svelte:head>
 	<title>{data.map.name} · Concept Cartography</title>
@@ -100,9 +175,43 @@
 	<!-- Toolbar -->
 	<div class="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5">
 		<a href="/" class="text-slate-400 hover:text-slate-600" aria-label="Back to maps">←</a>
+
 		<div class="min-w-0">
-			<h1 class="truncate font-semibold text-slate-800">{data.map.name}</h1>
+			{#if editingMapName}
+				<div class="flex items-center gap-1.5">
+					<input
+						bind:this={mapNameInputEl}
+						bind:value={mapNameDraft}
+						onblur={saveMapName}
+						onkeydown={(e) => {
+							if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+							if (e.key === 'Escape') {
+								editingMapName = false;
+							}
+						}}
+						disabled={savingMapName}
+						class="rounded-md border border-blue-300 px-2 py-1 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+					/>
+				</div>
+				{#if mapNameError}
+					<p class="mt-0.5 text-xs text-red-600">{mapNameError}</p>
+				{/if}
+			{:else}
+				<button onclick={startEditingMapName} class="group flex items-center gap-1.5" aria-label="Rename map">
+					<h1 class="truncate font-semibold text-slate-800 group-hover:text-blue-600">{data.map.name}</h1>
+					<span class="text-slate-300 group-hover:text-slate-500">✎</span>
+				</button>
+			{/if}
 		</div>
+
+		<button
+			onclick={() => (confirmDeleteMap = true)}
+			class="text-slate-300 hover:text-red-600"
+			aria-label="Delete map"
+			title="Delete map"
+		>
+			🗑
+		</button>
 
 		<div class="ml-auto flex flex-wrap items-center gap-2">
 			<SearchBar concepts={data.concepts} onSelect={selectConcept} />
@@ -128,6 +237,32 @@
 			>
 				Auto-arrange
 			</button>
+
+			<div class="relative" bind:this={exportMenuEl}>
+				<button
+					onclick={() => (showExportMenu = !showExportMenu)}
+					disabled={data.concepts.length === 0}
+					class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+				>
+					Export
+				</button>
+				{#if showExportMenu}
+					<div class="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+						<button
+							onclick={() => exportAs('png')}
+							class="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+						>
+							Export as PNG
+						</button>
+						<button
+							onclick={() => exportAs('svg')}
+							class="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+						>
+							Export as SVG
+						</button>
+					</div>
+				{/if}
+			</div>
 
 			<button
 				onclick={() => (rightPanel = rightPanel === 'activity' ? 'none' : 'activity')}
@@ -165,7 +300,7 @@
 			{/if}
 
 			{#if showLegend && data.concepts.length > 0}
-				<div class="absolute bottom-4 left-4 max-w-[220px] rounded-lg border border-slate-200 bg-white/95 p-3 text-xs shadow-sm backdrop-blur">
+				<div class="absolute top-4 left-4 max-w-[220px] rounded-lg border border-slate-200 bg-white/95 p-3 text-xs shadow-sm backdrop-blur">
 					<div class="mb-1.5 flex items-center justify-between">
 						<span class="font-semibold text-slate-600">Relation types</span>
 						<button onclick={() => (showLegend = false)} class="text-slate-300 hover:text-slate-500" aria-label="Hide legend">✕</button>
@@ -183,7 +318,7 @@
 			{:else if !showLegend && data.concepts.length > 0}
 				<button
 					onclick={() => (showLegend = true)}
-					class="absolute bottom-4 left-4 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm hover:text-slate-700"
+					class="absolute top-4 left-4 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm hover:text-slate-700"
 				>
 					Show legend
 				</button>
@@ -229,4 +364,38 @@
 		onClose={() => (relationModal = null)}
 		onSubmit={createRelation}
 	/>
+{/if}
+
+{#if confirmDeleteMap}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+		<div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+			<h2 class="text-lg font-semibold text-slate-800">Delete this map?</h2>
+			<p class="mt-2 text-sm text-slate-500">
+				This permanently deletes "{data.map.name}" and all {data.concepts.length}
+				concept{data.concepts.length === 1 ? '' : 's'} and {data.relations.length}
+				link{data.relations.length === 1 ? '' : 's'} in it. This can't be undone.
+			</p>
+
+			{#if deleteMapError}
+				<p class="mt-2 text-sm text-red-600">{deleteMapError}</p>
+			{/if}
+
+			<div class="mt-4 flex justify-end gap-2">
+				<button
+					onclick={() => (confirmDeleteMap = false)}
+					disabled={deletingMap}
+					class="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
+				>
+					Cancel
+				</button>
+				<button
+					onclick={deleteMap}
+					disabled={deletingMap}
+					class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+				>
+					{deletingMap ? 'Deleting…' : 'Delete map'}
+				</button>
+			</div>
+		</div>
+	</div>
 {/if}

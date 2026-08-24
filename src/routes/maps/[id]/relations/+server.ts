@@ -7,9 +7,11 @@ import { logActivity } from '$lib/server/activity';
 import { RELATION_TYPES, relationLabel } from '$lib/shared/relations';
 import type { RequestHandler } from './$types';
 import type { ClientRelation } from '$lib/shared/types';
+import { rateLimitUserWrite } from '$lib/server/rateLimit';
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await rateLimitUserWrite(locals.user.id); 
 
 	const body = (await request.json()) as { sourceId?: string; targetId?: string; type?: string };
 	const { sourceId, targetId, type } = body;

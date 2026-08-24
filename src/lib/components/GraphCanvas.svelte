@@ -55,6 +55,58 @@
 		return nodesById.get(end as string);
 	}
 
+	// --- minimap ---------------------------------------------------------------
+	const MINIMAP_WIDTH = 160;
+	const MINIMAP_HEIGHT = 110;
+	const MINIMAP_PADDING = 60;
+
+	const graphBounds = $derived.by(() => {
+		const placed = simNodes.filter((n) => n.x != null && n.y != null);
+		if (placed.length === 0) return null;
+		const xs = placed.map((n) => n.x!);
+		const ys = placed.map((n) => n.y!);
+		const minX = Math.min(...xs) - MINIMAP_PADDING;
+		const minY = Math.min(...ys) - MINIMAP_PADDING;
+		const maxX = Math.max(...xs) + MINIMAP_PADDING;
+		const maxY = Math.max(...ys) + MINIMAP_PADDING;
+		return {
+			minX,
+			minY,
+			w: Math.max(maxX - minX, 80),
+			h: Math.max(maxY - minY, 80)
+		};
+	});
+
+	// The polygon (not just a rectangle) of the currently visible area, in
+	// graph space — computed from the four container corners so it stays
+	// accurate even when the view is rotated.
+	const viewportPolygon = $derived.by(() => {
+		if (!container) return '';
+		const corners = [
+			localToGraph(0, 0),
+			localToGraph(width, 0),
+			localToGraph(width, height),
+			localToGraph(0, height)
+		];
+		return corners.map((p) => `${p.x},${p.y}`).join(' ');
+	});
+
+	function onMinimapPointerDown(e: PointerEvent) {
+		e.stopPropagation();
+		if (!graphBounds) return;
+		const svg = e.currentTarget as SVGSVGElement;
+		const pt = svg.createSVGPoint();
+		pt.x = e.clientX;
+		pt.y = e.clientY;
+		const ctm = svg.getScreenCTM();
+		if (!ctm) return;
+		const graphPt = pt.matrixTransform(ctm.inverse());
+		// Recenter the main view on the clicked graph point, keeping the
+		// current zoom and rotation.
+		const { x: rx, y: ry } = rotateAndScale(graphPt.x, graphPt.y, zoom);
+		pan = { x: width / 2 - rx, y: height / 2 - ry };
+	}
+
 	// --- simulation setup (created once) ------------------------------------
 	const linkForce = forceLink<SimNode, SimLink>([])
 		.id((d) => d.id)
@@ -156,13 +208,13 @@
 
 	// --- coordinate helpers ---------------------------------------------------
 	// The graph content is drawn under `translate(pan) rotate(rotation) scale(zoom)`,
-	// so converting a screen point back to graph space means undoing those in
-	// reverse order: subtract the pan, un-rotate, then un-scale.
-	function screenToGraph(clientX: number, clientY: number) {
-		if (!container) return { x: 0, y: 0 };
-		const rect = container.getBoundingClientRect();
-		const dx = clientX - rect.left - pan.x;
-		const dy = clientY - rect.top - pan.y;
+	// so converting a point back to graph space means undoing those in reverse
+	// order: subtract the pan, un-rotate, then un-scale. `localToGraph` takes
+	// coordinates already relative to the container's top-left corner;
+	// `screenToGraph` additionally converts from page (client) coordinates.
+	function localToGraph(localX: number, localY: number) {
+		const dx = localX - pan.x;
+		const dy = localY - pan.y;
 		const rad = (-rotation * Math.PI) / 180;
 		const cos = Math.cos(rad);
 		const sin = Math.sin(rad);
@@ -170,6 +222,28 @@
 			x: (dx * cos - dy * sin) / zoom,
 			y: (dx * sin + dy * cos) / zoom
 		};
+	}
+
+	/** Applies just the rotate+scale part of the view transform (no pan). */
+	function rotateAndScale(graphX: number, graphY: number, z: number) {
+		const rad = (rotation * Math.PI) / 180;
+		const cos = Math.cos(rad);
+		const sin = Math.sin(rad);
+		return {
+			x: graphX * z * cos - graphY * z * sin,
+			y: graphX * z * sin + graphY * z * cos
+		};
+	}
+
+	function graphToLocal(graphX: number, graphY: number) {
+		const { x, y } = rotateAndScale(graphX, graphY, zoom);
+		return { x: pan.x + x, y: pan.y + y };
+	}
+
+	function screenToGraph(clientX: number, clientY: number) {
+		if (!container) return { x: 0, y: 0 };
+		const rect = container.getBoundingClientRect();
+		return localToGraph(clientX - rect.left, clientY - rect.top);
 	}
 
 	// --- node dragging ---------------------------------------------------------
@@ -233,11 +307,7 @@
 		const next = Math.min(3, Math.max(0.25, zoom * (e.deltaY < 0 ? 1.12 : 0.89)));
 		// Re-derive where (gx, gy) would land on screen at the new zoom, and
 		// shift pan so that point stays fixed under the cursor.
-		const rad = (rotation * Math.PI) / 180;
-		const cos = Math.cos(rad);
-		const sin = Math.sin(rad);
-		const rx = gx * next * cos - gy * next * sin;
-		const ry = gx * next * sin + gy * next * cos;
+		const { x: rx, y: ry } = rotateAndScale(gx, gy, next);
 		pan = { x: sx - rx, y: sy - ry };
 		zoom = next;
 	}
@@ -258,6 +328,125 @@
 			n.fy = null;
 		}
 		simulation.alpha(1).restart();
+	}
+
+	// --- image export -----------------------------------------------------------
+	// Built independently from the live interactive SVG (which uses
+	// <foreignObject> for node labels) because rasterizing foreignObject
+	// content to a canvas is unreliable across browsers. Plain <text>/<tspan>
+	// elements are used instead, so both the SVG and PNG exports are exact,
+	// portable snapshots of the current layout.
+
+	function escapeXml(s: string): string {
+		return s
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;');
+	}
+
+	function wrapLabel(name: string, maxLineLen = 14): string[] {
+		if (name.length <= maxLineLen) return [name];
+		const mid = Math.floor(name.length / 2);
+		let splitAt = name.lastIndexOf(' ', mid);
+		if (splitAt <= 0) splitAt = name.indexOf(' ', mid);
+		if (splitAt <= 0) return [name.length > maxLineLen ? name.slice(0, maxLineLen - 1) + '…' : name];
+		const line1 = name.slice(0, splitAt);
+		const line2 = name.slice(splitAt + 1);
+		return [line1, line2.length > maxLineLen ? line2.slice(0, maxLineLen - 1) + '…' : line2];
+	}
+
+	function buildExportSvg(): string {
+		const nodes = simNodes.filter((n) => n.x != null && n.y != null);
+		if (nodes.length === 0) {
+			return '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="white"/></svg>';
+		}
+
+		const pad = 60;
+		const xs = nodes.map((n) => n.x!);
+		const ys = nodes.map((n) => n.y!);
+		const minX = Math.min(...xs) - pad;
+		const minY = Math.min(...ys) - pad;
+		const w = Math.max(Math.max(...xs) - minX + pad, 200);
+		const h = Math.max(Math.max(...ys) - minY + pad, 200);
+
+		const defs = Object.entries(RELATION_META)
+			.filter(([, m]) => m.directional)
+			.map(
+				([type, m]) => `<marker id="export-arrow-${type}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${m.color}" /></marker>`
+			)
+			.join('');
+
+		const linksSvg = simLinks
+			.map((link) => {
+				const s = resolveEnd(link.source);
+				const t = resolveEnd(link.target);
+				if (!s || !t || s.x == null || s.y == null || t.x == null || t.y == null) return '';
+				const meta = RELATION_META[link.type];
+				const markerAttr = meta.directional ? ` marker-end="url(#export-arrow-${link.type})"` : '';
+				return `<line x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" stroke="${meta.color}" stroke-width="2" stroke-opacity="0.8"${markerAttr} />`;
+			})
+			.join('');
+
+		const nodesSvg = nodes
+			.map((n) => {
+				const lines = wrapLabel(n.name);
+				const lineHeight = 12;
+				const startDy = -((lines.length - 1) * lineHeight) / 2;
+				const tspans = lines
+					.map((line, i) => `<tspan x="0" dy="${i === 0 ? startDy : lineHeight}">${escapeXml(line)}</tspan>`)
+					.join('');
+				return `<g transform="translate(${n.x} ${n.y})"><circle r="36" fill="white" stroke="#cbd5e1" stroke-width="1.5" /><text text-anchor="middle" font-size="11" font-family="Inter, system-ui, sans-serif" fill="#334155">${tspans}</text></g>`;
+			})
+			.join('');
+
+		return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${w} ${h}" width="${w}" height="${h}"><defs>${defs}</defs><rect x="${minX}" y="${minY}" width="${w}" height="${h}" fill="white" />${linksSvg}${nodesSvg}</svg>`;
+	}
+
+	function downloadBlob(blob: Blob, filename: string) {
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		URL.revokeObjectURL(url);
+	}
+
+	export function exportSVG(filename = 'concept-map.svg') {
+		const svgString = buildExportSvg();
+		downloadBlob(new Blob([svgString], { type: 'image/svg+xml' }), filename);
+	}
+
+	export async function exportPNG(filename = 'concept-map.png') {
+		const svgString = buildExportSvg();
+		const svgUrl = URL.createObjectURL(new Blob([svgString], { type: 'image/svg+xml' }));
+		try {
+			const img = new Image();
+			await new Promise<void>((resolve, reject) => {
+				img.onload = () => resolve();
+				img.onerror = () => reject(new Error('Could not render the map for export.'));
+				img.src = svgUrl;
+			});
+
+			const scale = 2; // export at 2x for a crisp, print-friendly image
+			const canvas = document.createElement('canvas');
+			canvas.width = Math.max(1, Math.round(img.width * scale));
+			canvas.height = Math.max(1, Math.round(img.height * scale));
+			const ctx = canvas.getContext('2d');
+			if (!ctx) throw new Error('Canvas is not supported in this browser.');
+			ctx.fillStyle = 'white';
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+			ctx.scale(scale, scale);
+			ctx.drawImage(img, 0, 0);
+
+			const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+			if (!blob) throw new Error('Could not create the PNG image.');
+			downloadBlob(blob, filename);
+		} finally {
+			URL.revokeObjectURL(svgUrl);
+		}
 	}
 </script>
 
@@ -390,4 +579,38 @@
 			aria-label="Reset view">⤾</button
 		>
 	</div>
+
+	<!-- Minimap: overview of every node's position with a polygon showing the
+	     current viewport (accurate even when rotated), click to jump there. -->
+	{#if graphBounds && simNodes.length > 1}
+		<div
+			class="absolute bottom-4 left-4 overflow-hidden rounded-lg border border-slate-200 bg-white/95 shadow-sm"
+			style="width: {MINIMAP_WIDTH}px; height: {MINIMAP_HEIGHT}px"
+		>
+			<svg
+				width={MINIMAP_WIDTH}
+				height={MINIMAP_HEIGHT}
+				viewBox="{graphBounds.minX} {graphBounds.minY} {graphBounds.w} {graphBounds.h}"
+				class="cursor-pointer"
+				onpointerdown={onMinimapPointerDown}
+				role="img"
+				aria-label="Map overview — click to jump to that area"
+			>
+				{#each simNodes as node (node.id)}
+					{#if node.x != null && node.y != null}
+						<circle cx={node.x} cy={node.y} r={Math.max(3, Math.min(graphBounds.w, graphBounds.h) / 40)} fill="#94a3b8" />
+					{/if}
+				{/each}
+				{#if viewportPolygon}
+					<polygon
+						points={viewportPolygon}
+						fill="#2563eb"
+						fill-opacity="0.12"
+						stroke="#2563eb"
+						stroke-width={Math.max(1, Math.min(graphBounds.w, graphBounds.h) / 200)}
+					/>
+				{/if}
+			</svg>
+		</div>
+	{/if}
 </div>

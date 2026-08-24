@@ -114,6 +114,11 @@ const STATEMENTS = [
 		summary TEXT NOT NULL,
 		created_at INTEGER NOT NULL
 	)`,
+	`CREATE TABLE IF NOT EXISTS rate_limits (
+	key TEXT PRIMARY KEY,
+	window_start INTEGER NOT NULL,
+	count INTEGER NOT NULL
+)`,
 	`CREATE INDEX IF NOT EXISTS idx_concepts_map ON concepts(map_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_relations_map ON concept_relations(map_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_relations_source ON concept_relations(source_id)`,

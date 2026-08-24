@@ -5,9 +5,11 @@ import { concepts, conceptRelations, maps } from '$lib/server/db/schema';
 import { logActivity } from '$lib/server/activity';
 import { relationLabel } from '$lib/shared/relations';
 import type { RequestHandler } from './$types';
+import { rateLimitUserWrite } from '$lib/server/rateLimit';
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await rateLimitUserWrite(locals.user.id); 
 
 	const existing = await db
 		.select()

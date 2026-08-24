@@ -7,9 +7,12 @@ import { getMap } from '$lib/server/queries';
 import { logActivity } from '$lib/server/activity';
 import type { RequestHandler } from './$types';
 import type { ConceptInput, ClientConcept } from '$lib/shared/types';
+import { rateLimitUserWrite } from '$lib/server/rateLimit';
+
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await rateLimitUserWrite(locals.user.id); 
 
 	const map = await getMap(params.id);
 	if (!map) throw error(404, 'Map not found');

@@ -5,6 +5,7 @@ import { maps } from '$lib/server/db/schema';
 import { listMapsWithStats } from '$lib/server/queries';
 import { logActivity } from '$lib/server/activity';
 import type { Actions, PageServerLoad } from './$types';
+import { checkRateLimit } from '$lib/server/rateLimit';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) {
@@ -20,7 +21,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
 	createMap: async ({ request, locals }) => {
-		if (!locals.user) return fail(401, { error: 'Sign in first.' });
+	if (!locals.user) return fail(401, { error: 'Sign in first.' });
+
+	const rateLimitResult = await checkRateLimit(`write:${locals.user.id}`, {
+		limit: 60,
+		windowMs: 60_000
+	});
+	if (!rateLimitResult.allowed) {
+		return fail(429, {
+			error: `Too many requests. Please try again in ${rateLimitResult.retryAfterSeconds}s.`
+		});
+	}
 
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
