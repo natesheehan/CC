@@ -213,7 +213,7 @@
 
 			<div>
 				<label for="c-quiz" class="mb-1 block text-sm font-medium text-slate-700">
-					Quiz question <span class="font-normal text-slate-400">(optional)</span>
+					Quiz question <span class="font-normal text-slate-400"></span>
 				</label>
 				<textarea
 					id="c-quiz"
