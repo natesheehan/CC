@@ -32,7 +32,7 @@ export const RELATION_META: Record<RelationType, RelationMeta> = {
 	part_of: {
 		label: 'Part of',
 		phrase: 'is part of',
-		color: '#7c3aed', // violet
+		color: '#4c3aed', // violet
 		directional: true,
 		description: 'Compositional / meronymic relationship (whole-part).'
 	},
