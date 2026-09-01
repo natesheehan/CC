@@ -119,7 +119,7 @@
 					bind:value={name}
 					required
 					maxlength="200"
-					placeholder="e.g. Homeostasis"
+					placeholder="e.g. Metadata"
 					class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 				/>
 			</div>
@@ -137,7 +137,7 @@
 							id={index === 0 ? 'c-def' : undefined}
 							bind:value={definitions[index]}
 							rows="3"
-							placeholder="A precise, sourced definition of this concept…"
+							placeholder="A short, practical definition of this concept for non-specialist learners…"
 							class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 						></textarea>
 						{#if definitions.length > 1}
