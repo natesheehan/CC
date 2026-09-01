@@ -33,10 +33,12 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	}
 	if ('definition' in body) {
 		const definition = String(body.definition ?? '').trim();
-		if (definition.length < 1) throw error(400, 'A definition is required.');
-		updates.definition = definition;
+		updates.definition = definition || null;
 	}
-	if ('literatureLink' in body) updates.literatureLink = (body.literatureLink as string)?.trim() || null;
+	if ('literatureLink' in body) {
+		const literatureLink = String(body.literatureLink ?? '').trim();
+		updates.literatureLink = literatureLink || null;
+	}
 	if ('example' in body) updates.example = (body.example as string)?.trim() || null;
 	if ('quizQuestion' in body) updates.quizQuestion = (body.quizQuestion as string)?.trim() || null;
 	if ('x' in body) updates.x = body.x === null ? null : Number(body.x);

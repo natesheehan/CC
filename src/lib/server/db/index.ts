@@ -52,6 +52,80 @@ const client: Client = createClient(
 
 export const db = drizzle(client, { schema });
 
+async function migrateLegacyConceptSchema() {
+	try {
+		const conceptsInfo = await client.execute('PRAGMA table_info(concepts)');
+		const definitionColumn = conceptsInfo.rows.find((row) => row.name === 'definition');
+		const legacyConceptsExists = await client
+			.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'concepts_legacy'")
+			.then((result) => result.rows.length > 0)
+			.catch(() => false);
+		const relationsNeedFix = await client
+			.execute("PRAGMA foreign_key_list('concept_relations')")
+			.then((result) => result.rows.some((row) => row.table === 'concepts_legacy'))
+			.catch(() => false);
+
+		if (!definitionColumn || definitionColumn.notnull !== 1) {
+			if (!legacyConceptsExists && !relationsNeedFix) return;
+		}
+
+		if (legacyConceptsExists) {
+			await client.batch(
+				[
+					'ALTER TABLE concepts RENAME TO concepts_legacy',
+					`CREATE TABLE concepts (
+						id TEXT PRIMARY KEY,
+						map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+						name TEXT NOT NULL,
+						definition TEXT,
+						literature_link TEXT,
+						example TEXT,
+						quiz_question TEXT,
+						x INTEGER,
+						y INTEGER,
+						created_by TEXT NOT NULL REFERENCES users(id),
+						updated_by TEXT NOT NULL REFERENCES users(id),
+						created_at INTEGER NOT NULL,
+						updated_at INTEGER NOT NULL
+					)`,
+					`INSERT INTO concepts (id, map_id, name, definition, literature_link, example, quiz_question, x, y, created_by, updated_by, created_at, updated_at)
+					 SELECT id, map_id, name, definition, literature_link, example, quiz_question, x, y, created_by, updated_by, created_at, updated_at
+					 FROM concepts_legacy`,
+					'DROP TABLE concepts_legacy'
+				],
+				'write'
+			);
+		}
+
+		if (relationsNeedFix) {
+			await client.batch(
+				[
+					'ALTER TABLE concept_relations RENAME TO concept_relations_legacy',
+					`CREATE TABLE concept_relations (
+						id TEXT PRIMARY KEY,
+						map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+						source_id TEXT NOT NULL REFERENCES concepts(id) ON DELETE CASCADE,
+						target_id TEXT NOT NULL REFERENCES concepts(id) ON DELETE CASCADE,
+						type TEXT NOT NULL,
+						created_by TEXT NOT NULL REFERENCES users(id),
+						created_at INTEGER NOT NULL
+					)`,
+					`INSERT INTO concept_relations (id, map_id, source_id, target_id, type, created_by, created_at)
+					 SELECT id, map_id, source_id, target_id, type, created_by, created_at
+					 FROM concept_relations_legacy`,
+					'DROP TABLE concept_relations_legacy',
+					'CREATE INDEX IF NOT EXISTS idx_relations_map ON concept_relations(map_id)',
+					'CREATE INDEX IF NOT EXISTS idx_relations_source ON concept_relations(source_id)',
+					'CREATE INDEX IF NOT EXISTS idx_relations_target ON concept_relations(target_id)'
+				],
+				'write'
+			);
+		}
+	} catch {
+		// Ignore if the legacy tables do not exist or the database has already been migrated.
+	}
+}
+
 // --- schema bootstrap ------------------------------------------------------
 // libSQL (unlike better-sqlite3) doesn't support executing a multi-statement
 // SQL string in one call, so each statement is run individually via batch().
@@ -84,7 +158,7 @@ const STATEMENTS = [
 		id TEXT PRIMARY KEY,
 		map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
 		name TEXT NOT NULL,
-		definition TEXT NOT NULL,
+		definition TEXT,
 		literature_link TEXT,
 		example TEXT,
 		quiz_question TEXT,
@@ -132,13 +206,15 @@ const STATEMENTS = [
  */
 export function ensureSchema(): Promise<void> {
 	if (!schemaReady) {
-		schemaReady = client.batch(STATEMENTS, 'write').then(
-			() => undefined,
-			(err) => {
-				schemaReady = null; // allow retry on next request if it failed
-				throw err;
-			}
-		);
+		schemaReady = migrateLegacyConceptSchema()
+			.then(() => client.batch(STATEMENTS, 'write'))
+			.then(
+				() => undefined,
+				(err) => {
+					schemaReady = null; // allow retry on next request if it failed
+					throw err;
+				}
+			);
 	}
 	return schemaReady;
 }

@@ -15,13 +15,60 @@
 	} = $props();
 
 	let name = $state(untrack(() => initial?.name ?? ''));
-	let definition = $state(untrack(() => initial?.definition ?? ''));
-	let literatureLink = $state(untrack(() => initial?.literatureLink ?? ''));
-	let example = $state(untrack(() => initial?.example ?? ''));
+	let definitions = $state<string[]>(
+		untrack(() => {
+			const parsed = initial?.definition ? initial.definition.split(/\n\s*---\s*\n|\r?\n\r?\n/) : [''];
+			return parsed.length > 0 ? parsed : [''];
+		})
+	);
+	let sourceLinks = $state<string[]>(
+		untrack(() => {
+			const parsed = initial?.literatureLink
+				? initial.literatureLink
+						.split(/[\r\n;]+/)
+						.map((item) => item.trim())
+						.filter(Boolean)
+				: [''];
+			return parsed.length > 0 ? parsed : [''];
+		})
+	);
+	let examples = $state<string[]>(
+		untrack(() => {
+			const parsed = initial?.example ? initial.example.split(/\n\s*---\s*\n|\r?\n\r?\n/) : [''];
+			return parsed.length > 0 ? parsed : [''];
+		})
+	);
 	let quizQuestion = $state(untrack(() => initial?.quizQuestion ?? ''));
 
 	let submitting = $state(false);
 	let error = $state('');
+
+	function addDefinitionField() {
+		definitions = [...definitions, ''];
+	}
+	function addSourceField() {
+		sourceLinks = [...sourceLinks, ''];
+	}
+	function addExampleField() {
+		examples = [...examples, ''];
+	}
+	function removeListItem(items: string[], index: number): string[] {
+		const next = items.filter((_, i) => i !== index);
+		return next.length > 0 ? next : [''];
+	}
+	function splitMultiValue(value: string) {
+		return value
+			.split(/[\r\n;]+/)
+			.map((part) => part.trim())
+			.filter(Boolean);
+	}
+	function normalizeSourceLink(value: string) {
+		const trimmed = value.trim();
+		if (!trimmed) return '';
+		if (/^https?:\/\//i.test(trimmed)) return trimmed;
+		if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+		return trimmed;
+	}
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
@@ -31,18 +78,20 @@
 			error = 'Give the concept a name.';
 			return;
 		}
-		if (definition.trim().length < 1) {
-			error = 'A definition is required.';
-			return;
-		}
+
+		const normalizedDefinitions = definitions.flatMap((value) => splitMultiValue(value));
+		const normalizedSources = sourceLinks
+			.flatMap((value) => splitMultiValue(value))
+			.map((value) => normalizeSourceLink(value));
+		const normalizedExamples = examples.flatMap((value) => splitMultiValue(value));
 
 		submitting = true;
 		try {
 			await onSubmit({
 				name: name.trim(),
-				definition: definition.trim(),
-				literatureLink: literatureLink.trim() || null,
-				example: example.trim() || null,
+				definition: normalizedDefinitions.join('\n\n---\n\n') || null,
+				literatureLink: normalizedSources.join('\n') || null,
+				example: normalizedExamples.join('\n\n---\n\n') || null,
 				quizQuestion: quizQuestion.trim() || null
 			});
 		} catch (err) {
@@ -76,41 +125,90 @@
 			</div>
 
 			<div>
-				<label for="c-def" class="mb-1 block text-sm font-medium text-slate-700">Definition</label>
-				<textarea
-					id="c-def"
-					bind:value={definition}
-					required
-					rows="3"
-					placeholder="A precise, sourced definition of this concept…"
-					class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-				></textarea>
+				<div class="mb-1 flex items-center justify-between gap-2">
+					<label for="c-def" class="block text-sm font-medium text-slate-700">Definition</label>
+					<button type="button" onclick={addDefinitionField} class="text-xs font-medium text-blue-600 hover:underline">
+						+ Add another
+					</button>
+				</div>
+				{#each definitions as definition, index (index)}
+					<div class="mb-2 flex gap-2">
+						<textarea
+							id={index === 0 ? 'c-def' : undefined}
+							bind:value={definitions[index]}
+							rows="3"
+							placeholder="A precise, sourced definition of this concept…"
+							class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						></textarea>
+						{#if definitions.length > 1}
+							<button
+								type="button"
+								onclick={() => (definitions = removeListItem(definitions, index))}
+								class="shrink-0 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+							>
+								Remove
+							</button>
+						{/if}
+					</div>
+				{/each}
 			</div>
 
 			<div>
-				<label for="c-lit" class="mb-1 block text-sm font-medium text-slate-700">
-					Literature link <span class="font-normal text-slate-400">(where the definition is from)</span>
-				</label>
-				<input
-					id="c-lit"
-					bind:value={literatureLink}
-					type="url"
-					placeholder="https://doi.org/…"
-					class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-				/>
+				<div class="mb-1 flex items-center justify-between gap-2">
+					<label for="c-lit" class="block text-sm font-medium text-slate-700">Sources</label>
+					<button type="button" onclick={addSourceField} class="text-xs font-medium text-blue-600 hover:underline">
+						+ Add another
+					</button>
+				</div>
+				{#each sourceLinks as sourceLink, index (index)}
+					<div class="mb-2 flex gap-2">
+						<input
+							id={index === 0 ? 'c-lit' : undefined}
+							bind:value={sourceLinks[index]}
+							type="url"
+							placeholder="https://doi.org/…"
+							class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						/>
+						{#if sourceLinks.length > 1}
+							<button
+								type="button"
+								onclick={() => (sourceLinks = removeListItem(sourceLinks, index))}
+								class="shrink-0 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+							>
+								Remove
+							</button>
+						{/if}
+					</div>
+				{/each}
 			</div>
 
 			<div>
-				<label for="c-example" class="mb-1 block text-sm font-medium text-slate-700">
-					Example <span class="font-normal text-slate-400">(optional)</span>
-				</label>
-				<textarea
-					id="c-example"
-					bind:value={example}
-					rows="2"
-					placeholder="A concrete example that illustrates the concept…"
-					class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-				></textarea>
+				<div class="mb-1 flex items-center justify-between gap-2">
+					<label for="c-example" class="block text-sm font-medium text-slate-700">Example</label>
+					<button type="button" onclick={addExampleField} class="text-xs font-medium text-blue-600 hover:underline">
+						+ Add another
+					</button>
+				</div>
+				{#each examples as example, index (index)}
+					<div class="mb-2 flex gap-2">
+						<textarea
+							id={index === 0 ? 'c-example' : undefined}
+							bind:value={examples[index]}
+							rows="2"
+							placeholder="A concrete example that illustrates the concept…"
+							class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						></textarea>
+						{#if examples.length > 1}
+							<button
+								type="button"
+								onclick={() => (examples = removeListItem(examples, index))}
+								class="shrink-0 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+							>
+								Remove
+							</button>
+						{/if}
+					</div>
+				{/each}
 			</div>
 
 			<div>

@@ -38,7 +38,7 @@ export const concepts = sqliteTable('concepts', {
 		.notNull()
 		.references(() => maps.id, { onDelete: 'cascade' }),
 	name: text('name').notNull(),
-	definition: text('definition').notNull(),
+	definition: text('definition'),
 	literatureLink: text('literature_link'),
 	example: text('example'),
 	quizQuestion: text('quiz_question'),

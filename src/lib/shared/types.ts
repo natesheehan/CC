@@ -19,7 +19,7 @@ export interface ClientConcept {
 	id: string;
 	mapId: string;
 	name: string;
-	definition: string;
+	definition: string | null;
 	literatureLink: string | null;
 	example: string | null;
 	quizQuestion: string | null;
@@ -61,7 +61,7 @@ export interface ClientActivityEntry {
 
 export interface ConceptInput {
 	name: string;
-	definition: string;
+	definition?: string | null;
 	literatureLink?: string | null;
 	example?: string | null;
 	quizQuestion?: string | null;

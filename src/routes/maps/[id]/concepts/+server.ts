@@ -20,12 +20,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const body = (await request.json()) as ConceptInput;
 	const name = (body.name ?? '').trim();
 	const definition = (body.definition ?? '').trim();
+	const literatureLink = (body.literatureLink ?? '').trim();
 
 	if (name.length < 1 || name.length > 200) {
 		throw error(400, 'Concept name must be 1-200 characters.');
-	}
-	if (definition.length < 1) {
-		throw error(400, 'A definition is required.');
 	}
 
 	const id = nanoid();
@@ -37,8 +35,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			id,
 			mapId: params.id,
 			name,
-			definition,
-			literatureLink: body.literatureLink?.trim() || null,
+			definition: definition || null,
+			literatureLink: literatureLink || null,
 			example: body.example?.trim() || null,
 			quizQuestion: body.quizQuestion?.trim() || null,
 			x: body.x ?? null,
@@ -65,8 +63,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		id,
 		mapId: params.id,
 		name,
-		definition,
-		literatureLink: body.literatureLink?.trim() || null,
+		definition: definition || null,
+		literatureLink: literatureLink || null,
 		example: body.example?.trim() || null,
 		quizQuestion: body.quizQuestion?.trim() || null,
 		x: body.x ?? null,

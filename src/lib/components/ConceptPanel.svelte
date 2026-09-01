@@ -26,6 +26,24 @@
 	} = $props();
 
 	const conceptById = $derived(new Map(concepts.map((c) => [c.id, c])));
+	const definitionBlocks = $derived(
+		(concept.definition ?? '')
+			.split(/\n\s*---\s*\n|\r?\n\r?\n/)
+			.map((segment) => segment.trim())
+			.filter(Boolean)
+	);
+	const sourceLinks = $derived(
+		(concept.literatureLink ?? '')
+			.split(/[\r\n;]+/)
+			.map((link) => link.trim())
+			.filter(Boolean)
+	);
+	const exampleBlocks = $derived(
+		(concept.example ?? '')
+			.split(/\n\s*---\s*\n|\r?\n\r?\n/)
+			.map((segment) => segment.trim())
+			.filter(Boolean)
+	);
 
 	const outgoing = $derived(relations.filter((r) => r.sourceId === concept.id));
 	const incoming = $derived(relations.filter((r) => r.targetId === concept.id));
@@ -52,23 +70,39 @@
 	<div class="flex-1 space-y-5 p-4">
 		<section>
 			<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Definition</h3>
-			<p class="mt-1 whitespace-pre-wrap text-sm text-slate-700">{concept.definition}</p>
-			{#if concept.literatureLink}
-				<a
-					href={concept.literatureLink}
-					target="_blank"
-					rel="noopener noreferrer"
-					class="mt-1.5 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-				>
-					📖 Source literature
-				</a>
+			{#if definitionBlocks.length > 0}
+				<div class="mt-1 space-y-2">
+					{#each definitionBlocks as block (block)}
+						<p class="whitespace-pre-wrap text-sm text-slate-700">{block}</p>
+					{/each}
+				</div>
+			{:else}
+				<p class="mt-1 text-sm text-slate-400">No definition added yet.</p>
+			{/if}
+			{#if sourceLinks.length > 0}
+				<div class="mt-2 space-y-1">
+					{#each sourceLinks as sourceLink (sourceLink)}
+						<a
+							href={sourceLink}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+						>
+							📖 {sourceLink}
+						</a>
+					{/each}
+				</div>
 			{/if}
 		</section>
 
-		{#if concept.example}
+		{#if exampleBlocks.length > 0}
 			<section>
-				<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Example</h3>
-				<p class="mt-1 whitespace-pre-wrap text-sm text-slate-700">{concept.example}</p>
+				<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Examples</h3>
+				<div class="mt-1 space-y-2">
+					{#each exampleBlocks as block (block)}
+						<p class="whitespace-pre-wrap text-sm text-slate-700">{block}</p>
+					{/each}
+				</div>
 			</section>
 		{/if}
 
