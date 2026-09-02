@@ -32,49 +32,49 @@ export const RELATION_META: Record<RelationType, RelationMeta> = {
 	part_of: {
 		label: 'Part of',
 		phrase: 'is part of',
-		color: '#4c3aed', // violet
+		color: '#7c3aed', // vivid violet
 		directional: true,
 		description: 'Compositional / meronymic relationship (whole-part).'
 	},
 	produces: {
 		label: 'Produces',
 		phrase: 'produces',
-		color: '#16a34a', // green
+		color: '#10b981', // emerald green
 		directional: true,
 		description: 'Causal relationship: source generates or yields target.'
 	},
 	counteracts: {
 		label: 'Counteracts',
 		phrase: 'counteracts',
-		color: '#dc2626', // red
+		color: '#b91c1c', // deep crimson red
 		directional: true,
 		description: 'Source opposes, inhibits, or offsets target.'
 	},
 	similar_to: {
 		label: 'Similar to',
 		phrase: 'is similar to',
-		color: '#0891b2', // cyan
+		color: '#0ea5e9', // bright sky blue
 		directional: false,
 		description: 'Conceptually related / analogous, without full equivalence.'
 	},
 	equivalent_to: {
 		label: 'Equivalent to',
 		phrase: 'is equivalent to',
-		color: '#65a30d', // lime
+		color: '#84cc16', // chartreuse green
 		directional: false,
 		description: 'Interchangeable within the scope of this map.'
 	},
 	distinct_from: {
 		label: 'Distinct from',
 		phrase: 'is distinct from',
-		color: '#ea580c', // orange
+		color: '#0f766e', // deep teal
 		directional: false,
 		description: 'Commonly confused, but explicitly different concepts.'
 	},
 	depends_on: {
 		label: 'Depends on',
 		phrase: 'depends on',
-		color: '#9333ea', // purple
+		color: '#7c3aed', // vivid violet
 		directional: true,
 		description: 'Source requires or presupposes target.'
 	}
