@@ -38,7 +38,12 @@
 			return parsed.length > 0 ? parsed : [''];
 		})
 	);
-	let quizQuestion = $state(untrack(() => initial?.quizQuestion ?? ''));
+	let quizQuestions = $state<string[]>(
+		untrack(() => {
+			const parsed = initial?.quizQuestion ? initial.quizQuestion.split(/\n\s*---\s*\n|\r?\n\r?\n/) : [''];
+			return parsed.length > 0 ? parsed : [''];
+		})
+	);
 
 	let submitting = $state(false);
 	let error = $state('');
@@ -51,6 +56,9 @@
 	}
 	function addExampleField() {
 		examples = [...examples, ''];
+	}
+	function addQuizField() {
+		quizQuestions = [...quizQuestions, ''];
 	}
 	function removeListItem(items: string[], index: number): string[] {
 		const next = items.filter((_, i) => i !== index);
@@ -84,6 +92,7 @@
 			.flatMap((value) => splitMultiValue(value))
 			.map((value) => normalizeSourceLink(value));
 		const normalizedExamples = examples.flatMap((value) => splitMultiValue(value));
+		const normalizedQuizQuestions = quizQuestions.flatMap((value) => splitMultiValue(value));
 
 		submitting = true;
 		try {
@@ -92,7 +101,7 @@
 				definition: normalizedDefinitions.join('\n\n---\n\n') || null,
 				literatureLink: normalizedSources.join('\n') || null,
 				example: normalizedExamples.join('\n\n---\n\n') || null,
-				quizQuestion: quizQuestion.trim() || null
+				quizQuestion: normalizedQuizQuestions.join('\n\n---\n\n') || null
 			});
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Something went wrong.';
@@ -212,16 +221,32 @@
 			</div>
 
 			<div>
-				<label for="c-quiz" class="mb-1 block text-sm font-medium text-slate-700">
-					Quiz question <span class="font-normal text-slate-400"></span>
-				</label>
-				<textarea
-					id="c-quiz"
-					bind:value={quizQuestion}
-					rows="2"
-					placeholder="A question someone could use to test their understanding of this concept…"
-					class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-				></textarea>
+				<div class="mb-1 flex items-center justify-between gap-2">
+					<label for="c-quiz" class="block text-sm font-medium text-slate-700">Quiz question</label>
+					<button type="button" onclick={addQuizField} class="text-xs font-medium text-blue-600 hover:underline">
+						+ Add another
+					</button>
+				</div>
+				{#each quizQuestions as quizQuestionEntry, index (index)}
+					<div class="mb-2 flex gap-2">
+						<textarea
+							id={index === 0 ? 'c-quiz' : undefined}
+							bind:value={quizQuestions[index]}
+							rows="2"
+							placeholder="A question someone could use to test their understanding of this concept…"
+							class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						></textarea>
+						{#if quizQuestions.length > 1}
+							<button
+								type="button"
+								onclick={() => (quizQuestions = removeListItem(quizQuestions, index))}
+								class="shrink-0 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+							>
+								Remove
+							</button>
+						{/if}
+					</div>
+				{/each}
 			</div>
 
 			{#if error}

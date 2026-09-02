@@ -120,7 +120,7 @@
 				</div>
 				<div>
 					<label for="map-description" class="mb-1 block text-sm font-medium text-slate-700">
-						Description <span class="font-normal text-slate-400">(optional)</span>
+						Description
 					</label>
 					<textarea
 						id="map-description"

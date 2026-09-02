@@ -44,6 +44,12 @@
 			.map((segment) => segment.trim())
 			.filter(Boolean)
 	);
+	const quizBlocks = $derived(
+		(concept.quizQuestion ?? '')
+			.split(/\n\s*---\s*\n|\r?\n\r?\n/)
+			.map((segment) => segment.trim())
+			.filter(Boolean)
+	);
 
 	const outgoing = $derived(relations.filter((r) => r.sourceId === concept.id));
 	const incoming = $derived(relations.filter((r) => r.targetId === concept.id));
@@ -106,12 +112,16 @@
 			</section>
 		{/if}
 
-		{#if concept.quizQuestion}
+		{#if quizBlocks.length > 0}
 			<section>
-				<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Quiz question</h3>
-				<p class="mt-1 whitespace-pre-wrap rounded-md bg-amber-50 p-2 text-sm text-amber-900">
-					❓ {concept.quizQuestion}
-				</p>
+				<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Quiz question{quizBlocks.length > 1 ? 's' : ''}</h3>
+				<div class="mt-1 space-y-2">
+					{#each quizBlocks as block (block)}
+						<p class="whitespace-pre-wrap rounded-md bg-amber-50 p-2 text-sm text-amber-900">
+							❓ {block}
+						</p>
+					{/each}
+				</div>
 			</section>
 		{/if}
 

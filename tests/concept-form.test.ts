@@ -4,7 +4,12 @@ import ConceptFormModal from '../src/lib/components/ConceptFormModal.svelte';
 
 describe('ConceptFormModal', () => {
 	it('allows submitting a concept with only a name and multiple source links', () => {
-		const submitted: Array<{ name: string; definition: string | null; literatureLink: string | null }> = [];
+		const submitted: Array<{
+			name: string;
+			definition: string | null;
+			literatureLink: string | null;
+			quizQuestion: string | null;
+		}> = [];
 		const target = document.createElement('div');
 		document.body.appendChild(target);
 
@@ -16,7 +21,8 @@ describe('ConceptFormModal', () => {
 					submitted.push({
 						name: data.name,
 						definition: data.definition ?? null,
-						literatureLink: data.literatureLink ?? null
+						literatureLink: data.literatureLink ?? null,
+						quizQuestion: data.quizQuestion ?? null
 					});
 				},
 				onClose: () => {}
@@ -28,6 +34,9 @@ describe('ConceptFormModal', () => {
 		const form = target.querySelector('#concept-form') as HTMLFormElement;
 		const addSourceButton = Array.from(target.querySelectorAll('button')).find((button) =>
 			button.textContent?.includes('Add another') && button.parentElement?.textContent?.includes('Sources')
+		) as HTMLButtonElement;
+		const addQuizButton = Array.from(target.querySelectorAll('button')).find((button) =>
+			button.textContent?.includes('Add another') && button.parentElement?.textContent?.includes('Quiz question')
 		) as HTMLButtonElement;
 
 		nameInput.value = 'Homeostasis';
@@ -42,6 +51,14 @@ describe('ConceptFormModal', () => {
 		sourceInputs[0].dispatchEvent(new Event('input'));
 		sourceInputs[1].value = 'https://example.com/b';
 		sourceInputs[1].dispatchEvent(new Event('input'));
+		addQuizButton.click();
+		flushSync();
+
+		const quizInputs = target.querySelectorAll('textarea[id="c-quiz"], textarea:not([id])') as NodeListOf<HTMLTextAreaElement>;
+		quizInputs[0].value = 'What is homeostasis?';
+		quizInputs[0].dispatchEvent(new Event('input'));
+		quizInputs[1].value = 'Why does it matter?';
+		quizInputs[1].dispatchEvent(new Event('input'));
 
 		flushSync();
 		form.dispatchEvent(new Event('submit', { cancelable: true }));
@@ -50,7 +67,8 @@ describe('ConceptFormModal', () => {
 		expect(submitted[0]).toMatchObject({
 			name: 'Homeostasis',
 			definition: null,
-			literatureLink: 'https://example.com/a\nhttps://example.com/b'
+			literatureLink: 'https://example.com/a\nhttps://example.com/b',
+			quizQuestion: 'What is homeostasis?\n\n---\n\nWhy does it matter?'
 		});
 		target.remove();
 	});
