@@ -218,25 +218,20 @@
 
 			<button
 				onclick={() => (conceptModal = { mode: 'create' })}
-				class="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+				class="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
 			>
-				<span class="leading-none">+</span> Concept
+				<span class="text-base leading-none">+</span>
+				<span>Concept</span>
 			</button>
 
 			<button
 				onclick={() => (relationModal = { sourceId: selectedConceptId ?? undefined })}
 				disabled={data.concepts.length < 2}
-				class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+				class="rounded-xl border border-violet-300 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-40"
 			>
 				Link concepts
 			</button>
 
-			<button
-				onclick={() => graphRef?.reArrange()}
-				class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-			>
-				Auto-arrange
-			</button>
 
 			<div class="relative" bind:this={exportMenuEl}>
 				<button
