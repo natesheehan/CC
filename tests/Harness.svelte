@@ -37,6 +37,7 @@
 			sourceId,
 			targetId,
 			type: 'produces',
+			description: null,
 			createdById: 'user-1',
 			createdByName: 'Tester',
 			createdAt: new Date().toISOString()

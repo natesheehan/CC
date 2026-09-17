@@ -65,6 +65,7 @@ export async function getMapRelations(mapId: string) {
 			sourceId: conceptRelations.sourceId,
 			targetId: conceptRelations.targetId,
 			type: conceptRelations.type,
+			description: conceptRelations.description,
 			createdAt: conceptRelations.createdAt,
 			createdById: conceptRelations.createdBy,
 			createdByName: users.name

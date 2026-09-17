@@ -144,13 +144,20 @@
 						{@const meta = RELATION_META[rel.type]}
 						<li class="group flex items-center gap-2 rounded-md border border-slate-100 px-2 py-1.5 text-sm">
 							<span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {meta.color}"></span>
-							<span class="text-slate-500">{meta.phrase}</span>
-							<button
-								onclick={() => other && onSelectConcept(other.id)}
-								class="flex-1 truncate text-left font-medium text-slate-800 hover:text-blue-600"
-							>
-								{other?.name ?? 'Unknown concept'}
-							</button>
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center gap-1.5">
+									<span class="text-slate-500">{meta.phrase}</span>
+									<button
+										onclick={() => other && onSelectConcept(other.id)}
+										class="truncate text-left font-medium text-slate-800 hover:text-blue-600"
+									>
+										{other?.name ?? 'Unknown concept'}
+									</button>
+								</div>
+								{#if rel.description}
+									<p class="mt-1 whitespace-pre-wrap text-xs text-slate-500">Describe this relationship: {rel.description}</p>
+								{/if}
+							</div>
 							<button
 								onclick={() => onDeleteRelation(rel.id)}
 								class="hidden text-slate-300 hover:text-red-600 group-hover:block"
@@ -165,13 +172,20 @@
 						{@const meta = RELATION_META[rel.type]}
 						<li class="group flex items-center gap-2 rounded-md border border-slate-100 px-2 py-1.5 text-sm">
 							<span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {meta.color}"></span>
-							<button
-								onclick={() => other && onSelectConcept(other.id)}
-								class="flex-1 truncate text-left font-medium text-slate-800 hover:text-blue-600"
-							>
-								{other?.name ?? 'Unknown concept'}
-							</button>
-							<span class="text-slate-500">{meta.phrase} this</span>
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center gap-1.5">
+									<button
+										onclick={() => other && onSelectConcept(other.id)}
+										class="truncate text-left font-medium text-slate-800 hover:text-blue-600"
+									>
+										{other?.name ?? 'Unknown concept'}
+									</button>
+									<span class="text-slate-500">{meta.phrase} this</span>
+								</div>
+								{#if rel.description}
+									<p class="mt-1 whitespace-pre-wrap text-xs text-slate-500">Describe this relationship: {rel.description}</p>
+								{/if}
+							</div>
 							<button
 								onclick={() => onDeleteRelation(rel.id)}
 								class="hidden text-slate-300 hover:text-red-600 group-hover:block"

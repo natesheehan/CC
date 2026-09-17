@@ -13,8 +13,14 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
 	await rateLimitUserWrite(locals.user.id); 
 
-	const body = (await request.json()) as { sourceId?: string; targetId?: string; type?: string };
+	const body = (await request.json()) as {
+		sourceId?: string;
+		targetId?: string;
+		type?: string;
+		description?: string | null;
+	};
 	const { sourceId, targetId, type } = body;
+	const description = body.description?.trim() || null;
 
 	if (!sourceId || !targetId) throw error(400, 'sourceId and targetId are required.');
 	if (sourceId === targetId) throw error(400, 'A concept cannot be related to itself.');
@@ -34,26 +40,12 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		.get();
 	if (!source || !target) throw error(404, 'Both concepts must exist in this map.');
 
-	const dup = await db
-		.select()
-		.from(conceptRelations)
-		.where(
-			and(
-				eq(conceptRelations.mapId, params.id),
-				eq(conceptRelations.sourceId, sourceId),
-				eq(conceptRelations.targetId, targetId),
-				eq(conceptRelations.type, type)
-			)
-		)
-		.get();
-	if (dup) throw error(409, 'This exact relation already exists.');
-
 	const id = nanoid();
 	const now = new Date();
 
 	await db
 		.insert(conceptRelations)
-		.values({ id, mapId: params.id, sourceId, targetId, type, createdBy: locals.user.id, createdAt: now })
+		.values({ id, mapId: params.id, sourceId, targetId, type, description, createdBy: locals.user.id, createdAt: now })
 		.run();
 
 	await db.update(maps).set({ updatedAt: now }).where(eq(maps.id, params.id)).run();
@@ -73,6 +65,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		sourceId,
 		targetId,
 		type: type as ClientRelation['type'],
+		description,
 		createdById: locals.user.id,
 		createdByName: locals.user.name,
 		createdAt: now.toISOString()

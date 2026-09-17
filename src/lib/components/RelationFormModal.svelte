@@ -11,7 +11,7 @@
 	}: {
 		concepts: ClientConcept[];
 		defaultSourceId?: string;
-		onSubmit: (data: { sourceId: string; targetId: string; type: string }) => Promise<void> | void;
+		onSubmit: (data: { sourceId: string; targetId: string; type: string; description: string }) => Promise<void> | void;
 		onClose: () => void;
 	} = $props();
 
@@ -19,6 +19,7 @@
 	let targetQuery = $state('');
 	let targetId = $state('');
 	let type = $state<(typeof RELATION_TYPES)[number]>('type_of');
+	let description = $state('');
 
 	let submitting = $state(false);
 	let error = $state('');
@@ -48,7 +49,7 @@
 
 		submitting = true;
 		try {
-			await onSubmit({ sourceId, targetId, type });
+			await onSubmit({ sourceId, targetId, type, description: description.trim() });
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Something went wrong.';
 			submitting = false;
@@ -76,6 +77,18 @@
 						<option value={c.id}>{c.name}</option>
 					{/each}
 				</select>
+			</div>
+
+			<div>
+				<label for="r-description" class="mb-1 block text-sm font-medium text-slate-700">Tension description <span class="font-normal text-slate-400">(optional)</span></label>
+				<textarea
+					id="r-description"
+					bind:value={description}
+					maxlength="1000"
+					rows="3"
+					placeholder="What tension, trade-off, or connection does this link represent?"
+					class="w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+				></textarea>
 			</div>
 
 			<div>

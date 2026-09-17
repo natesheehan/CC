@@ -7,7 +7,7 @@
 	import RelationFormModal from '$lib/components/RelationFormModal.svelte';
 	import ActivityFeed from '$lib/components/ActivityFeed.svelte';
 	import SearchBar from '$lib/components/SearchBar.svelte';
-	import { RELATION_META } from '$lib/shared/relations';
+	import { RELATION_META, RELATION_TYPES, type RelationType } from '$lib/shared/relations';
 	import type { ConceptInput, ClientConcept } from '$lib/shared/types';
 	import type { PageData } from './$types';
 
@@ -16,6 +16,7 @@
 	let selectedConceptId: string | null = $state(null);
 	let rightPanel: 'none' | 'concept' | 'activity' = $state('none');
 	let showLegend = $state(true);
+	let visibleRelationTypes = $state<Set<RelationType>>(new Set(RELATION_TYPES));
 
 	let conceptModal: { mode: 'create' | 'edit'; initial?: ClientConcept } | null = $state(null);
 	let relationModal: { sourceId?: string } | null = $state(null);
@@ -23,6 +24,14 @@
 	let graphRef: GraphCanvas | undefined = $state();
 
 	const selectedConcept = $derived(data.concepts.find((c) => c.id === selectedConceptId) ?? null);
+	const visibleRelations = $derived(data.relations.filter((relation) => visibleRelationTypes.has(relation.type)));
+
+	function toggleRelationType(type: RelationType) {
+		const next = new Set(visibleRelationTypes);
+		if (next.has(type)) next.delete(type);
+		else next.add(type);
+		visibleRelationTypes = next;
+	}
 
 	function selectConcept(id: string) {
 		selectedConceptId = id;
@@ -69,7 +78,7 @@
 		await invalidateAll();
 	}
 
-	async function createRelation(input: { sourceId: string; targetId: string; type: string }) {
+	async function createRelation(input: { sourceId: string; targetId: string; type: string; description: string }) {
 		await api(`/maps/${data.map.id}/relations`, {
 			method: 'POST',
 			body: JSON.stringify(input)
@@ -287,7 +296,7 @@
 				<GraphCanvas
 					bind:this={graphRef}
 					concepts={data.concepts}
-					relations={data.relations}
+					relations={visibleRelations}
 					selectedId={selectedConceptId}
 					onSelect={selectConcept}
 					onNodeMoved={moveConcept}
@@ -301,11 +310,20 @@
 						<button onclick={() => (showLegend = false)} class="text-slate-300 hover:text-slate-500" aria-label="Hide legend">✕</button>
 					</div>
 					<ul class="space-y-1">
-						{#each Object.entries(RELATION_META) as [key, meta] (key)}
-							<li class="flex items-center gap-1.5 text-slate-600">
-								<span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {meta.color}"></span>
-								{meta.label}
+						{#each RELATION_TYPES as key (key)}
+							{@const meta = RELATION_META[key]}
+							<li>
+								<button
+									onclick={() => toggleRelationType(key)}
+									aria-pressed={visibleRelationTypes.has(key)}
+									class="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left transition hover:bg-slate-50 {visibleRelationTypes.has(key)
+										? 'text-slate-600'
+										: 'text-slate-300 line-through'}"
+								>
+									<span class="h-2 w-2 shrink-0 rounded-full {visibleRelationTypes.has(key) ? '' : 'opacity-30'}" style="background-color: {meta.color}"></span>
+									{meta.label}
 								{#if !meta.directional}<span class="text-slate-300">(mutual)</span>{/if}
+								</button>
 							</li>
 						{/each}
 					</ul>

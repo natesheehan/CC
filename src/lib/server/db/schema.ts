@@ -67,6 +67,7 @@ export const conceptRelations = sqliteTable('concept_relations', {
 		.notNull()
 		.references(() => concepts.id, { onDelete: 'cascade' }),
 	type: text('type').notNull(), // one of RELATION_TYPES, see relations.ts
+	description: text('description'),
 	createdBy: text('created_by')
 		.notNull()
 		.references(() => users.id),

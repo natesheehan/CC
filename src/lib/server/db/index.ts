@@ -208,6 +208,7 @@ export function ensureSchema(): Promise<void> {
 	if (!schemaReady) {
 		schemaReady = migrateLegacyConceptSchema()
 			.then(() => client.batch(STATEMENTS, 'write'))
+			.then(() => client.execute('ALTER TABLE concept_relations ADD COLUMN description TEXT').catch(() => undefined))
 			.then(
 				() => undefined,
 				(err) => {

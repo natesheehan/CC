@@ -41,6 +41,7 @@ export interface ClientRelation {
 	sourceId: string;
 	targetId: string;
 	type: RelationType;
+	description: string | null;
 	createdById: string;
 	createdByName?: string | null;
 	createdAt: string;

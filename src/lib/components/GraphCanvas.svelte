@@ -21,6 +21,7 @@
 	interface SimLink extends SimulationLinkDatum<SimNode> {
 		id: string;
 		type: RelationType;
+		description: string | null;
 	}
 
 	let {
@@ -53,6 +54,43 @@
 	function resolveEnd(end: SimLink['source']): SimNode | undefined {
 		if (typeof end === 'object') return end as SimNode;
 		return nodesById.get(end as string);
+	}
+
+	function linkEndpoints(link: SimLink) {
+		const source = resolveEnd(link.source);
+		const target = resolveEnd(link.target);
+		if (!source || !target || source.x == null || source.y == null || target.x == null || target.y == null) {
+			return null;
+		}
+
+		const pairLinks = simLinks
+			.filter((candidate) => {
+				const candidateSource = resolveEnd(candidate.source);
+				const candidateTarget = resolveEnd(candidate.target);
+				return (
+					candidateSource &&
+					candidateTarget &&
+					((candidateSource.id === source.id && candidateTarget.id === target.id) ||
+						(candidateSource.id === target.id && candidateTarget.id === source.id))
+				);
+			})
+			.sort((a, b) => a.id.localeCompare(b.id));
+		const index = pairLinks.findIndex((candidate) => candidate.id === link.id);
+		const offset = (index - (pairLinks.length - 1) / 2) * 18;
+		const dx = target.x - source.x;
+		const dy = target.y - source.y;
+		const distance = Math.hypot(dx, dy) || 1;
+		const perpendicularX = (-dy / distance) * offset;
+		const perpendicularY = (dx / distance) * offset;
+
+		return {
+			source,
+			target,
+			x1: source.x + perpendicularX,
+			y1: source.y + perpendicularY,
+			x2: target.x + perpendicularX,
+			y2: target.y + perpendicularY
+		};
 	}
 
 	// --- minimap ---------------------------------------------------------------
@@ -192,7 +230,13 @@
 		const ids = new Set(nextNodes.map((n) => n.id));
 		const nextLinks: SimLink[] = liveRelations
 			.filter((r) => ids.has(r.sourceId) && ids.has(r.targetId))
-			.map((r) => ({ id: r.id, type: r.type, source: r.sourceId, target: r.targetId }));
+			.map((r) => ({
+				id: r.id,
+				type: r.type,
+				description: r.description,
+				source: r.sourceId,
+				target: r.targetId
+			}));
 		simLinks = nextLinks;
 
 		// Use the local `nextNodes`/`nextLinks` variables here, NOT the
@@ -379,12 +423,11 @@
 
 		const linksSvg = simLinks
 			.map((link) => {
-				const s = resolveEnd(link.source);
-				const t = resolveEnd(link.target);
-				if (!s || !t || s.x == null || s.y == null || t.x == null || t.y == null) return '';
+				const endpoints = linkEndpoints(link);
+				if (!endpoints) return '';
 				const meta = RELATION_META[link.type];
 				const markerAttr = meta.directional ? ` marker-end="url(#export-arrow-${link.type})"` : '';
-				return `<line x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" stroke="${meta.color}" stroke-width="2" stroke-opacity="0.8"${markerAttr} />`;
+				return `<line x1="${endpoints.x1}" y1="${endpoints.y1}" x2="${endpoints.x2}" y2="${endpoints.y2}" stroke="${meta.color}" stroke-width="2" stroke-opacity="0.8"${markerAttr} />`;
 			})
 			.join('');
 
@@ -484,21 +527,20 @@
 
 		<g transform="translate({pan.x} {pan.y}) rotate({rotation}) scale({zoom})">
 			{#each simLinks as link (link.id)}
-				{@const s = resolveEnd(link.source)}
-				{@const t = resolveEnd(link.target)}
-				{#if s && t && s.x != null && s.y != null && t.x != null && t.y != null}
+				{@const endpoints = linkEndpoints(link)}
+				{#if endpoints}
 					{@const meta = RELATION_META[link.type]}
 					<line
-						x1={s.x}
-						y1={s.y}
-						x2={t.x}
-						y2={t.y}
+						x1={endpoints.x1}
+						y1={endpoints.y1}
+						x2={endpoints.x2}
+						y2={endpoints.y2}
 						stroke={meta.color}
 						stroke-width="2"
 						stroke-opacity="0.75"
 						marker-end={meta.directional ? `url(#arrow-${link.type})` : undefined}
 					>
-						<title>{s.name} — {meta.label.toLowerCase()} — {t.name}</title>
+						<title>{endpoints.source.name} — {meta.label.toLowerCase()} — {endpoints.target.name}{link.description ? `: ${link.description}` : ''}</title>
 					</line>
 				{/if}
 			{/each}
@@ -598,7 +640,14 @@
 			>
 				{#each simNodes as node (node.id)}
 					{#if node.x != null && node.y != null}
-						<circle cx={node.x} cy={node.y} r={Math.max(3, Math.min(graphBounds.w, graphBounds.h) / 40)} fill="#94a3b8" />
+						{@const markerSize = Math.max(3, Math.min(graphBounds.w, graphBounds.h) / 40)}
+						<rect
+							x={node.x - markerSize}
+							y={node.y - markerSize}
+							width={markerSize * 2}
+							height={markerSize * 2}
+							fill="#94a3b8"
+						/>
 					{/if}
 				{/each}
 				{#if viewportPolygon}
