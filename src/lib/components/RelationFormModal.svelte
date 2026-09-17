@@ -80,13 +80,13 @@
 			</div>
 
 			<div>
-				<label for="r-description" class="mb-1 block text-sm font-medium text-slate-700">Tension description <span class="font-normal text-slate-400">(optional)</span></label>
+				<label for="r-description" class="mb-1 block text-sm font-medium text-slate-700"> Description of relation <span class="font-normal text-slate-400">(optional)</span></label>
 				<textarea
 					id="r-description"
 					bind:value={description}
 					maxlength="1000"
 					rows="3"
-					placeholder="What tension, trade-off, or connection does this link represent?"
+					placeholder="What does this link represent?"
 					class="w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 				></textarea>
 			</div>
