@@ -193,11 +193,34 @@ const STATEMENTS = [
 	window_start INTEGER NOT NULL,
 	count INTEGER NOT NULL
 )`,
+	`CREATE TABLE IF NOT EXISTS relation_types (
+		id TEXT PRIMARY KEY,
+		map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+		key TEXT NOT NULL,
+		label TEXT NOT NULL,
+		phrase TEXT NOT NULL,
+		color TEXT NOT NULL,
+		directional INTEGER NOT NULL DEFAULT 1,
+		description TEXT,
+		created_by TEXT NOT NULL REFERENCES users(id),
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	)`,
+	`CREATE TABLE IF NOT EXISTS relation_comments (
+		id TEXT PRIMARY KEY,
+		map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+		relation_id TEXT NOT NULL REFERENCES concept_relations(id) ON DELETE CASCADE,
+		user_id TEXT NOT NULL REFERENCES users(id),
+		body TEXT NOT NULL,
+		created_at INTEGER NOT NULL
+	)`,
 	`CREATE INDEX IF NOT EXISTS idx_concepts_map ON concepts(map_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_relations_map ON concept_relations(map_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_relations_source ON concept_relations(source_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_relations_target ON concept_relations(target_id)`,
-	`CREATE INDEX IF NOT EXISTS idx_activity_map ON activity_log(map_id)`
+	`CREATE INDEX IF NOT EXISTS idx_activity_map ON activity_log(map_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_relation_types_map ON relation_types(map_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_relation_comments_relation ON relation_comments(relation_id)`
 ];
 
 /**
@@ -209,6 +232,17 @@ export function ensureSchema(): Promise<void> {
 		schemaReady = migrateLegacyConceptSchema()
 			.then(() => client.batch(STATEMENTS, 'write'))
 			.then(() => client.execute('ALTER TABLE concept_relations ADD COLUMN description TEXT').catch(() => undefined))
+			.then(() =>
+				client
+					.execute("ALTER TABLE concept_relations ADD COLUMN direction TEXT NOT NULL DEFAULT 'forward'")
+					.catch(() => undefined)
+			)
+			.then(() =>
+				client.execute('ALTER TABLE concept_relations ADD COLUMN updated_by TEXT REFERENCES users(id)').catch(() => undefined)
+			)
+			.then(() =>
+				client.execute('ALTER TABLE concept_relations ADD COLUMN updated_at INTEGER').catch(() => undefined)
+			)
 			.then(
 				() => undefined,
 				(err) => {
