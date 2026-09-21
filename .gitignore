@@ -1,1 +1,19 @@
-./node_modules
+node_modules/
+.svelte-kit/
+.vercel/
+build/
+dist/
+
+# local dev database — production uses a hosted Turso/libSQL database instead
+data/*.db
+data/*.db-*
+!data/.gitkeep
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
+coverage/
+
