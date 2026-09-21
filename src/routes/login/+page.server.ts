@@ -5,7 +5,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (locals.user) {
-		throw redirect(303, url.searchParams.get('redirectTo') || '/');
+		throw redirect(303, url.searchParams.get('redirectTo') || '/maps');
 	}
 	return {};
 };
@@ -31,6 +31,6 @@ export const actions: Actions = {
 			return fail(400, { error: err instanceof Error ? err.message : 'Could not sign in.', name });
 		}
 
-		throw redirect(303, url.searchParams.get('redirectTo') || '/');
+		throw redirect(303, url.searchParams.get('redirectTo') || '/maps');
 	}
 };

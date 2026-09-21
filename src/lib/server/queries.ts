@@ -66,6 +66,28 @@ export async function getMapConcepts(mapId: string) {
 		.all();
 }
 
+// A global, cross-map directory of every concept — used by the /concepts
+// dictionary page rather than a single map's canvas.
+export async function getAllConcepts() {
+	return await db
+		.select({
+			id: concepts.id,
+			mapId: concepts.mapId,
+			mapName: maps.name,
+			name: concepts.name,
+			definition: concepts.definition,
+			literatureLink: concepts.literatureLink,
+			example: concepts.example,
+			createdAt: concepts.createdAt,
+			createdByName: creator.name
+		})
+		.from(concepts)
+		.innerJoin(maps, eq(concepts.mapId, maps.id))
+		.leftJoin(creator, eq(concepts.createdBy, creator.id))
+		.orderBy(concepts.name)
+		.all();
+}
+
 export async function getMapRelations(mapId: string) {
 	return await db
 		.select({

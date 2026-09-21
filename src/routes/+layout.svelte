@@ -3,6 +3,17 @@
 	import { page } from '$app/state';
 
 	let { data, children } = $props();
+
+	const tabs = [
+		{ href: '/', label: 'How to' },
+		{ href: '/maps', label: 'Maps' },
+		{ href: '/concepts', label: 'Concepts' }
+	];
+
+	function isActive(href: string): boolean {
+		if (href === '/') return page.url.pathname === '/';
+		return page.url.pathname === href || page.url.pathname.startsWith(href + '/');
+	}
 </script>
 
 <div class="flex min-h-screen flex-col">
@@ -17,6 +28,20 @@
 				</svg>
 				<span>Concept Cartography</span>
 			</a>
+
+			<nav class="hidden items-center gap-1 sm:flex" aria-label="Primary">
+				{#each tabs as tab (tab.href)}
+					<a
+						href={tab.href}
+						aria-current={isActive(tab.href) ? 'page' : undefined}
+						class="rounded-md px-3 py-1.5 text-sm font-medium transition {isActive(tab.href)
+							? 'bg-blue-50 text-blue-700'
+							: 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}"
+					>
+						{tab.label}
+					</a>
+				{/each}
+			</nav>
 
 			{#if data.user}
 				<div class="flex items-center gap-3">
@@ -47,6 +72,20 @@
 				</a>
 			{/if}
 		</div>
+
+		<nav class="flex items-center gap-1 overflow-x-auto px-4 pb-2 sm:hidden" aria-label="Primary">
+			{#each tabs as tab (tab.href)}
+				<a
+					href={tab.href}
+					aria-current={isActive(tab.href) ? 'page' : undefined}
+					class="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition {isActive(tab.href)
+						? 'bg-blue-50 text-blue-700'
+						: 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}"
+				>
+					{tab.label}
+				</a>
+			{/each}
+		</nav>
 	</header>
 
 	<main class="flex flex-1 flex-col">
