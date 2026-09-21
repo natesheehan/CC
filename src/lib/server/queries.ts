@@ -18,7 +18,15 @@ export async function listMapsWithStats() {
 			createdById: maps.createdBy,
 			createdByName: users.name,
 			conceptCount: sql<number>`(select count(*) from concepts where concepts.map_id = maps.id)`,
-			relationCount: sql<number>`(select count(*) from concept_relations where concept_relations.map_id = maps.id)`
+			relationCount: sql<number>`(select count(*) from concept_relations where concept_relations.map_id = maps.id)`,
+			contributorCount: sql<number>`(
+				select count(distinct uid) from (
+					select ${maps.createdBy} as uid
+					union select created_by as uid from concepts where concepts.map_id = maps.id
+					union select updated_by as uid from concepts where concepts.map_id = maps.id
+					union select created_by as uid from concept_relations where concept_relations.map_id = maps.id
+				)
+			)`
 		})
 		.from(maps)
 		.leftJoin(users, eq(maps.createdBy, users.id))

@@ -80,6 +80,7 @@
 				<div class="mt-4 flex items-center gap-4 text-xs text-slate-500">
 					<span>{map.conceptCount} concept{map.conceptCount === 1 ? '' : 's'}</span>
 					<span>{map.relationCount} link{map.relationCount === 1 ? '' : 's'}</span>
+					<span>{map.contributorCount} contributor{map.contributorCount === 1 ? '' : 's'}</span>
 				</div>
 				<div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-400">
 					<span>by {map.createdByName ?? 'unknown'}</span>
