@@ -15,3 +15,4 @@ export function relativeTime(date: Date | string | number): string {
 	const years = Math.round(months / 12);
 	return `${years}y ago`;
 }
+
