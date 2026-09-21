@@ -332,11 +332,18 @@
 </svelte:head>
 
 <div class="flex flex-1 flex-col overflow-hidden">
-	<!-- Toolbar -->
-	<div class="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5">
-		<a href="/" class="text-slate-400 hover:text-slate-600" aria-label="Back to maps">←</a>
+	<!-- Toolbar: kept deliberately minimal — every map action lives in the
+	     floating toolbar over the canvas instead, so this is just wayfinding. -->
+	<div class="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
+		<a
+			href="/"
+			class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+			aria-label="Back to maps"
+		>
+			←
+		</a>
 
-		<div class="min-w-0">
+		<div class="min-w-0 flex-1">
 			{#if editingMapName}
 				<div class="flex items-center gap-1.5">
 					<input
@@ -358,88 +365,102 @@
 				{/if}
 			{:else}
 				<button onclick={startEditingMapName} class="group flex items-center gap-1.5" aria-label="Rename map">
-					<h1 class="truncate font-semibold text-slate-800 group-hover:text-blue-600">{data.map.name}</h1>
-					<span class="text-slate-300 group-hover:text-slate-500">✎</span>
+					<h1 class="truncate font-semibold tracking-tight text-slate-800 group-hover:text-blue-600">{data.map.name}</h1>
+					<span class="text-sm text-slate-300 group-hover:text-slate-500">✎</span>
 				</button>
 			{/if}
 		</div>
 
 		<button
 			onclick={() => (confirmDeleteMap = true)}
-			class="text-slate-300 hover:text-red-600"
+			class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600"
 			aria-label="Delete map"
 			title="Delete map"
 		>
 			🗑
 		</button>
-
-		<div class="ml-auto flex flex-wrap items-center gap-2">
-			<SearchBar concepts={data.concepts} onSelect={selectConcept} />
-
-			<button
-				onclick={() => (conceptModal = { mode: 'create' })}
-				class="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-			>
-				<span class="text-base leading-none">+</span>
-				<span>Concept</span>
-			</button>
-
-			<button
-				onclick={() => (relationModal = { mode: 'create', sourceId: selectedConceptId ?? undefined })}
-				disabled={data.concepts.length < 2}
-				class="rounded-xl border border-violet-300 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-40"
-			>
-				Link concepts
-			</button>
-
-			<button
-				onclick={() => (relationTypeManagerOpen = true)}
-				class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-			>
-				Relation types
-			</button>
-
-
-			<div class="relative" bind:this={exportMenuEl}>
-				<button
-					onclick={() => (showExportMenu = !showExportMenu)}
-					disabled={data.concepts.length === 0}
-					class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-				>
-					Export
-				</button>
-				{#if showExportMenu}
-					<div class="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
-						<button
-							onclick={() => exportAs('png')}
-							class="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-						>
-							Export as PNG
-						</button>
-						<button
-							onclick={() => exportAs('svg')}
-							class="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-						>
-							Export as SVG
-						</button>
-					</div>
-				{/if}
-			</div>
-
-			<button
-				onclick={() => (rightPanel = rightPanel === 'activity' ? 'none' : 'activity')}
-				class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 {rightPanel === 'activity'
-					? 'bg-slate-100 text-slate-900'
-					: 'text-slate-700'}"
-			>
-				Activity
-			</button>
-		</div>
 	</div>
 
 	<!-- Body -->
 	<div class="relative flex flex-1 overflow-hidden">
 		<div class="relative flex-1">
+			<!-- Floating map toolbar — every map action lives here, overlaid on
+			     the canvas like a professional mapping app (Figma/Google-Maps
+			     style), grouped and styled consistently for a sleeker feel. -->
+			<div class="absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white/95 p-1.5 shadow-md shadow-slate-900/5 backdrop-blur">
+				<SearchBar concepts={data.concepts} onSelect={selectConcept} />
+
+				<div class="mx-0.5 h-6 w-px shrink-0 bg-slate-200"></div>
+
+				<button
+					onclick={() => (conceptModal = { mode: 'create' })}
+					class="flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+				>
+					<span class="text-base leading-none">+</span>
+					<span>Concept</span>
+				</button>
+
+				<button
+					onclick={() => (relationModal = { mode: 'create', sourceId: selectedConceptId ?? undefined })}
+					disabled={data.concepts.length < 2}
+					class="flex h-9 items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-40"
+				>
+					<span class="text-base leading-none">🔗</span>
+					<span>Link</span>
+				</button>
+
+				<div class="mx-0.5 h-6 w-px shrink-0 bg-slate-200"></div>
+
+				<button
+					onclick={() => (relationTypeManagerOpen = true)}
+					class="flex h-9 w-9 items-center justify-center rounded-lg text-base text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+					aria-label="Relation types"
+					title="Relation types"
+				>
+					🏷️
+				</button>
+
+				<div class="relative" bind:this={exportMenuEl}>
+					<button
+						onclick={() => (showExportMenu = !showExportMenu)}
+						disabled={data.concepts.length === 0}
+						class="flex h-9 w-9 items-center justify-center rounded-lg text-base text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+						aria-label="Export map"
+						title="Export map"
+					>
+						⬇
+					</button>
+					{#if showExportMenu}
+						<div class="absolute right-0 z-10 mt-1.5 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+							<button
+								onclick={() => exportAs('png')}
+								class="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+							>
+								Export as PNG
+							</button>
+							<button
+								onclick={() => exportAs('svg')}
+								class="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+							>
+								Export as SVG
+							</button>
+						</div>
+					{/if}
+				</div>
+
+				<button
+					onclick={() => (rightPanel = rightPanel === 'activity' ? 'none' : 'activity')}
+					class="flex h-9 w-9 items-center justify-center rounded-lg text-base transition hover:bg-slate-100 {rightPanel ===
+					'activity'
+						? 'bg-slate-100 text-slate-900'
+						: 'text-slate-500 hover:text-slate-700'}"
+					aria-label="Activity feed"
+					title="Activity feed"
+				>
+					🕓
+				</button>
+			</div>
+
 			{#if data.concepts.length === 0}
 				<div class="flex h-full flex-col items-center justify-center px-4 text-center">
 					<p class="text-slate-500">This map is empty. Add your first concept to get started.</p>
