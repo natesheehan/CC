@@ -66,11 +66,53 @@ export const conceptRelations = sqliteTable('concept_relations', {
 	targetId: text('target_id')
 		.notNull()
 		.references(() => concepts.id, { onDelete: 'cascade' }),
-	type: text('type').notNull(), // one of RELATION_TYPES, see relations.ts
+	type: text('type').notNull(), // one of RELATION_TYPES, or a custom relation_types.key for this map
+	// 'forward' draws a single arrow source -> target; 'both' draws arrowheads
+	// at both ends (multi-directional). Defaults from the type's metadata but
+	// is editable per-relation-instance.
+	direction: text('direction').notNull().default('forward'),
 	description: text('description'),
 	createdBy: text('created_by')
 		.notNull()
 		.references(() => users.id),
+	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+	updatedBy: text('updated_by').references(() => users.id),
+	updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+});
+
+// Custom relation types defined per-map, in addition to the built-in
+// RELATION_TYPES. A relation's `type` column can reference either.
+export const relationTypes = sqliteTable('relation_types', {
+	id: text('id').primaryKey(),
+	mapId: text('map_id')
+		.notNull()
+		.references(() => maps.id, { onDelete: 'cascade' }),
+	key: text('key').notNull(), // slug used as ConceptRelation.type
+	label: text('label').notNull(),
+	phrase: text('phrase').notNull(),
+	color: text('color').notNull(),
+	directional: integer('directional', { mode: 'boolean' }).notNull().default(true),
+	description: text('description'),
+	createdBy: text('created_by')
+		.notNull()
+		.references(() => users.id),
+	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+});
+
+// Flat, chronological comment thread attached to a single relation.
+export const relationComments = sqliteTable('relation_comments', {
+	id: text('id').primaryKey(),
+	mapId: text('map_id')
+		.notNull()
+		.references(() => maps.id, { onDelete: 'cascade' }),
+	relationId: text('relation_id')
+		.notNull()
+		.references(() => conceptRelations.id, { onDelete: 'cascade' }),
+	userId: text('user_id')
+		.notNull()
+		.references(() => users.id),
+	body: text('body').notNull(),
 	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
 });
 
@@ -106,5 +148,7 @@ export type Session = typeof sessions.$inferSelect;
 export type MapRow = typeof maps.$inferSelect;
 export type Concept = typeof concepts.$inferSelect;
 export type ConceptRelation = typeof conceptRelations.$inferSelect;
+export type RelationTypeRow = typeof relationTypes.$inferSelect;
+export type RelationComment = typeof relationComments.$inferSelect;
 export type RateLimit = typeof rateLimits.$inferSelect;
 export type ActivityEntry = typeof activityLog.$inferSelect;

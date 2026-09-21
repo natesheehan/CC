@@ -37,6 +37,7 @@
 			sourceId,
 			targetId,
 			type: 'produces',
+			direction: 'forward',
 			description: null,
 			createdById: 'user-1',
 			createdByName: 'Tester',

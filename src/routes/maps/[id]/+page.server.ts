@@ -1,8 +1,9 @@
 import { error, redirect } from '@sveltejs/kit';
-import { getMap, getMapConcepts, getMapRelations } from '$lib/server/queries';
+import { getMap, getMapConcepts, getMapRelations, getMapRelationTypes } from '$lib/server/queries';
 import { getMapActivity } from '$lib/server/activity';
 import type { PageServerLoad } from './$types';
 import type { ClientActivityEntry, ClientConcept, ClientRelation } from '$lib/shared/types';
+import type { CustomRelationType } from '$lib/shared/relations';
 
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
@@ -13,10 +14,11 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 	const map = await getMap(params.id);
 	if (!map) throw error(404, 'Map not found');
 
-	const [rawConcepts, rawRelations, rawActivity] = await Promise.all([
+	const [rawConcepts, rawRelations, rawActivity, rawRelationTypes] = await Promise.all([
 		getMapConcepts(params.id),
 		getMapRelations(params.id),
-		getMapActivity(params.id)
+		getMapActivity(params.id),
+		getMapRelationTypes(params.id)
 	]);
 
 	const concepts: ClientConcept[] = rawConcepts.map((c) => ({
@@ -28,7 +30,14 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 	const relations: ClientRelation[] = rawRelations.map((r) => ({
 		...r,
 		type: r.type as ClientRelation['type'],
-		createdAt: r.createdAt.toISOString()
+		direction: r.direction as ClientRelation['direction'],
+		createdAt: r.createdAt.toISOString(),
+		updatedAt: r.updatedAt ? r.updatedAt.toISOString() : null
+	}));
+
+	const relationTypes: CustomRelationType[] = rawRelationTypes.map((t) => ({
+		...t,
+		createdAt: t.createdAt.toISOString()
 	}));
 
 	const activity: ClientActivityEntry[] = rawActivity.map((a) => ({
@@ -44,6 +53,7 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 		},
 		concepts,
 		relations,
+		relationTypes,
 		activity
 	};
 };

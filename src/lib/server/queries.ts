@@ -1,10 +1,11 @@
 import { eq, desc, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { db } from './db';
-import { maps, concepts, conceptRelations, users } from './db/schema';
+import { maps, concepts, conceptRelations, relationTypes, relationComments, users } from './db/schema';
 
 const creator = alias(users, 'creator');
 const editor = alias(users, 'editor');
+const relationEditor = alias(users, 'relationEditor');
 
 export async function listMapsWithStats() {
 	return await db
@@ -65,13 +66,59 @@ export async function getMapRelations(mapId: string) {
 			sourceId: conceptRelations.sourceId,
 			targetId: conceptRelations.targetId,
 			type: conceptRelations.type,
+			direction: conceptRelations.direction,
 			description: conceptRelations.description,
 			createdAt: conceptRelations.createdAt,
 			createdById: conceptRelations.createdBy,
-			createdByName: users.name
+			createdByName: users.name,
+			updatedById: conceptRelations.updatedBy,
+			updatedByName: relationEditor.name,
+			updatedAt: conceptRelations.updatedAt,
+			commentCount: sql<number>`(select count(*) from relation_comments where relation_comments.relation_id = concept_relations.id)`
 		})
 		.from(conceptRelations)
 		.leftJoin(users, eq(conceptRelations.createdBy, users.id))
+		.leftJoin(relationEditor, eq(conceptRelations.updatedBy, relationEditor.id))
 		.where(eq(conceptRelations.mapId, mapId))
+		.all();
+}
+
+export async function getMapRelationTypes(mapId: string) {
+	return await db
+		.select({
+			id: relationTypes.id,
+			mapId: relationTypes.mapId,
+			key: relationTypes.key,
+			label: relationTypes.label,
+			phrase: relationTypes.phrase,
+			color: relationTypes.color,
+			directional: relationTypes.directional,
+			description: relationTypes.description,
+			createdAt: relationTypes.createdAt,
+			createdById: relationTypes.createdBy,
+			createdByName: users.name
+		})
+		.from(relationTypes)
+		.leftJoin(users, eq(relationTypes.createdBy, users.id))
+		.where(eq(relationTypes.mapId, mapId))
+		.all();
+}
+
+export async function getRelationComments(relationId: string) {
+	return await db
+		.select({
+			id: relationComments.id,
+			mapId: relationComments.mapId,
+			relationId: relationComments.relationId,
+			userId: relationComments.userId,
+			userName: users.name,
+			userColor: users.color,
+			body: relationComments.body,
+			createdAt: relationComments.createdAt
+		})
+		.from(relationComments)
+		.leftJoin(users, eq(relationComments.userId, users.id))
+		.where(eq(relationComments.relationId, relationId))
+		.orderBy(relationComments.createdAt)
 		.all();
 }

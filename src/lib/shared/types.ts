@@ -40,10 +40,26 @@ export interface ClientRelation {
 	mapId: string;
 	sourceId: string;
 	targetId: string;
-	type: RelationType;
+	type: RelationType | string;
+	direction: 'forward' | 'both';
 	description: string | null;
 	createdById: string;
 	createdByName?: string | null;
+	createdAt: string;
+	updatedById?: string | null;
+	updatedByName?: string | null;
+	updatedAt?: string | null;
+	commentCount?: number;
+}
+
+export interface ClientRelationComment {
+	id: string;
+	mapId: string;
+	relationId: string;
+	userId: string;
+	userName: string | null;
+	userColor: string | null;
+	body: string;
 	createdAt: string;
 }
 

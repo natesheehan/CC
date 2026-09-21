@@ -7,22 +7,30 @@
 		concept,
 		concepts,
 		relations,
+		relationMeta = RELATION_META,
+		shareUrl,
 		onClose,
 		onEdit,
 		onDelete,
 		onAddRelation,
 		onSelectConcept,
-		onDeleteRelation
+		onDeleteRelation,
+		onEditRelation,
+		onOpenComments
 	}: {
 		concept: ClientConcept;
 		concepts: ClientConcept[];
 		relations: ClientRelation[];
+		relationMeta?: Record<string, { label: string; phrase: string; color: string; directional: boolean }>;
+		shareUrl?: string;
 		onClose: () => void;
 		onEdit: () => void;
 		onDelete: () => void;
 		onAddRelation: () => void;
 		onSelectConcept: (id: string) => void;
 		onDeleteRelation: (id: string) => void;
+		onEditRelation?: (rel: ClientRelation) => void;
+		onOpenComments?: (rel: ClientRelation) => void;
 	} = $props();
 
 	const conceptById = $derived(new Map(concepts.map((c) => [c.id, c])));
@@ -54,13 +62,61 @@
 	const outgoing = $derived(relations.filter((r) => r.sourceId === concept.id));
 	const incoming = $derived(relations.filter((r) => r.targetId === concept.id));
 
+	interface RelationRow {
+		rel: ClientRelation;
+		other: ClientConcept | undefined;
+		asSource: boolean;
+	}
+
+	// Aggregate every relation touching this concept into explorable groups
+	// keyed by relation type, so e.g. all 5 "type of" links show together.
+	const groupedRelations = $derived.by(() => {
+		const rows: RelationRow[] = [
+			...outgoing.map((rel) => ({ rel, other: conceptById.get(rel.targetId), asSource: true })),
+			...incoming.map((rel) => ({ rel, other: conceptById.get(rel.sourceId), asSource: false }))
+		];
+		const groups = new Map<string, RelationRow[]>();
+		for (const row of rows) {
+			const list = groups.get(row.rel.type) ?? [];
+			list.push(row);
+			groups.set(row.rel.type, list);
+		}
+		return Array.from(groups.entries())
+			.map(([type, items]) => ({ type, meta: relationMeta[type] ?? { label: type, phrase: type, color: '#64748b', directional: true }, items }))
+			.sort((a, b) => b.items.length - a.items.length);
+	});
+
 	let confirmingDelete = $state(false);
+	let linkCopied = $state(false);
+
+	async function copyConceptLink() {
+		if (!shareUrl) return;
+		try {
+			await navigator.clipboard.writeText(shareUrl);
+			linkCopied = true;
+			setTimeout(() => (linkCopied = false), 1500);
+		} catch {
+			// clipboard API may be unavailable; ignore silently
+		}
+	}
 </script>
 
 <aside class="flex h-full w-full flex-col overflow-y-auto border-l border-slate-200 bg-white">
 	<div class="flex items-start justify-between gap-2 border-b border-slate-100 p-4">
-		<div>
-			<h2 class="text-lg font-semibold text-slate-900">{concept.name}</h2>
+		<div class="min-w-0">
+			<div class="flex items-center gap-1.5">
+				<h2 class="truncate text-lg font-semibold text-slate-900">{concept.name}</h2>
+				{#if shareUrl}
+					<button
+						onclick={copyConceptLink}
+						class="shrink-0 text-xs text-slate-300 hover:text-blue-600"
+						title="Copy link to this concept"
+						aria-label="Copy link to this concept"
+					>
+						{linkCopied ? '✓' : '🔗'}
+					</button>
+				{/if}
+			</div>
 			<p class="mt-0.5 text-xs text-slate-400">
 				added by {concept.createdByName ?? 'unknown'} · {relativeTime(concept.createdAt)}
 				{#if concept.updatedById !== concept.createdById || concept.updatedAt !== concept.createdAt}
@@ -135,67 +191,86 @@
 				</button>
 			</div>
 
-			{#if outgoing.length === 0 && incoming.length === 0}
+			{#if groupedRelations.length === 0}
 				<p class="mt-2 text-sm text-slate-400">No relations yet.</p>
 			{:else}
-				<ul class="mt-2 space-y-1.5">
-					{#each outgoing as rel (rel.id)}
-						{@const other = conceptById.get(rel.targetId)}
-						{@const meta = RELATION_META[rel.type]}
-						<li class="group flex items-center gap-2 rounded-md border border-slate-100 px-2 py-1.5 text-sm">
-							<span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {meta.color}"></span>
-							<div class="min-w-0 flex-1">
-								<div class="flex items-center gap-1.5">
-									<span class="text-slate-500">{meta.phrase}</span>
-									<button
-										onclick={() => other && onSelectConcept(other.id)}
-										class="truncate text-left font-medium text-slate-800 hover:text-blue-600"
-									>
-										{other?.name ?? 'Unknown concept'}
-									</button>
-								</div>
-								{#if rel.description}
-									<p class="mt-1 whitespace-pre-wrap text-xs text-slate-500">Describe this relationship: {rel.description}</p>
-								{/if}
-							</div>
-							<button
-								onclick={() => onDeleteRelation(rel.id)}
-								class="hidden text-slate-300 hover:text-red-600 group-hover:block"
-								aria-label="Remove link"
-							>
-								✕
-							</button>
-						</li>
+				<div class="mt-2 space-y-2">
+					{#each groupedRelations as group (group.type)}
+						<details open class="rounded-md border border-slate-100">
+							<summary class="flex cursor-pointer list-none items-center gap-1.5 px-2 py-1.5 text-sm">
+								<span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {group.meta.color}"></span>
+								<span class="font-medium text-slate-700">{group.meta.label}</span>
+								<span class="text-xs text-slate-400">({group.items.length})</span>
+							</summary>
+							<ul class="space-y-1 border-t border-slate-100 p-1.5">
+								{#each group.items as row (row.rel.id)}
+									<li class="group flex items-start gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-slate-50">
+										<span class="mt-0.5 shrink-0 text-xs text-slate-400" title={row.rel.direction === 'both' ? 'Multi-directional' : 'One-directional'}>
+											{row.rel.direction === 'both' ? '↔' : row.asSource ? '→' : '←'}
+										</span>
+										<div class="min-w-0 flex-1">
+											<div class="flex flex-wrap items-center gap-1.5">
+												{#if row.asSource}
+													<span class="text-slate-500">{group.meta.phrase}</span>
+													<button
+														onclick={() => row.other && onSelectConcept(row.other.id)}
+														class="truncate text-left font-medium text-slate-800 hover:text-blue-600"
+													>
+														{row.other?.name ?? 'Unknown concept'}
+													</button>
+												{:else}
+													<button
+														onclick={() => row.other && onSelectConcept(row.other.id)}
+														class="truncate text-left font-medium text-slate-800 hover:text-blue-600"
+													>
+														{row.other?.name ?? 'Unknown concept'}
+													</button>
+													<span class="text-slate-500">{group.meta.phrase} this</span>
+												{/if}
+											</div>
+											{#if row.rel.description}
+												<p class="mt-1 whitespace-pre-wrap text-xs text-slate-500">{row.rel.description}</p>
+											{/if}
+											<p class="mt-1 text-[11px] text-slate-300">
+												added by {row.rel.createdByName ?? 'unknown'}
+												{#if row.rel.updatedByName && row.rel.updatedById !== row.rel.createdById}
+													· edited by {row.rel.updatedByName}
+												{/if}
+											</p>
+										</div>
+										<div class="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100">
+											{#if onOpenComments}
+												<button
+													onclick={() => onOpenComments?.(row.rel)}
+													class="rounded px-1 text-xs text-slate-400 hover:text-blue-600"
+													title="Comments"
+												>
+													💬{row.rel.commentCount ? row.rel.commentCount : ''}
+												</button>
+											{/if}
+											{#if onEditRelation}
+												<button
+													onclick={() => onEditRelation?.(row.rel)}
+													class="rounded px-1 text-xs text-slate-400 hover:text-blue-600"
+													title="Edit relation"
+												>
+													✎
+												</button>
+											{/if}
+											<button
+												onclick={() => onDeleteRelation(row.rel.id)}
+												class="rounded px-1 text-xs text-slate-300 hover:text-red-600"
+												aria-label="Remove link"
+											>
+												✕
+											</button>
+										</div>
+									</li>
+								{/each}
+							</ul>
+						</details>
 					{/each}
-					{#each incoming as rel (rel.id)}
-						{@const other = conceptById.get(rel.sourceId)}
-						{@const meta = RELATION_META[rel.type]}
-						<li class="group flex items-center gap-2 rounded-md border border-slate-100 px-2 py-1.5 text-sm">
-							<span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {meta.color}"></span>
-							<div class="min-w-0 flex-1">
-								<div class="flex items-center gap-1.5">
-									<button
-										onclick={() => other && onSelectConcept(other.id)}
-										class="truncate text-left font-medium text-slate-800 hover:text-blue-600"
-									>
-										{other?.name ?? 'Unknown concept'}
-									</button>
-									<span class="text-slate-500">{meta.phrase} this</span>
-								</div>
-								{#if rel.description}
-									<p class="mt-1 whitespace-pre-wrap text-xs text-slate-500">Describe this relationship: {rel.description}</p>
-								{/if}
-							</div>
-							<button
-								onclick={() => onDeleteRelation(rel.id)}
-								class="hidden text-slate-300 hover:text-red-600 group-hover:block"
-								aria-label="Remove link"
-							>
-								✕
-							</button>
-						</li>
-					{/each}
-				</ul>
+				</div>
 			{/if}
 		</section>
 	</div>
@@ -230,3 +305,4 @@
 		{/if}
 	</div>
 </aside>
+

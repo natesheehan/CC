@@ -87,3 +87,43 @@ export function relationLabel(type: string): string {
 export function relationColor(type: string): string {
 	return RELATION_META[type as RelationType]?.color ?? '#64748b';
 }
+
+/** A custom, map-scoped relation type, as returned to the client. */
+export interface CustomRelationType {
+	id: string;
+	mapId: string;
+	key: string;
+	label: string;
+	phrase: string;
+	color: string;
+	directional: boolean;
+	description: string | null;
+	createdById: string;
+	createdByName?: string | null;
+	createdAt: string;
+}
+
+/**
+ * Merges the built-in RELATION_TYPES with a map's custom relation types into
+ * a single lookup keyed by `type`, so UI code doesn't need to care whether a
+ * given relation's type is built-in or custom.
+ */
+export function mergeRelationMeta(
+	custom: CustomRelationType[]
+): Record<string, RelationMeta & { isCustom?: boolean; customId?: string }> {
+	const merged: Record<string, RelationMeta & { isCustom?: boolean; customId?: string }> = {
+		...RELATION_META
+	};
+	for (const c of custom) {
+		merged[c.key] = {
+			label: c.label,
+			phrase: c.phrase,
+			color: c.color,
+			directional: c.directional,
+			description: c.description ?? '',
+			isCustom: true,
+			customId: c.id
+		};
+	}
+	return merged;
+}

@@ -11,13 +11,18 @@ export type ActivityAction =
 	| 'deleted_concept'
 	| 'moved_concept'
 	| 'created_relation'
-	| 'deleted_relation';
+	| 'updated_relation'
+	| 'deleted_relation'
+	| 'commented_relation'
+	| 'created_relation_type'
+	| 'updated_relation_type'
+	| 'deleted_relation_type';
 
 export async function logActivity(params: {
 	mapId: string;
 	userId: string;
 	action: ActivityAction;
-	entityType: 'map' | 'concept' | 'relation';
+	entityType: 'map' | 'concept' | 'relation' | 'relation_type' | 'comment';
 	entityId: string;
 	summary: string;
 }): Promise<void> {

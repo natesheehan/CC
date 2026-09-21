@@ -45,9 +45,10 @@ describe('GraphCanvas', () => {
 		window.removeEventListener('error', onUnhandled);
 
 		// GraphCanvas should have rendered two remaining nodes and one edge
-		// after concept-3 was removed.
+		// after concept-3 was removed. Each edge renders two <line>s: an
+		// invisible wide hit-area for easier clicking, plus the visible line.
 		expect(target.querySelectorAll('circle').length).toBe(2);
-		expect(target.querySelectorAll('line').length).toBe(1);
+		expect(target.querySelectorAll('line').length).toBe(2);
 		expect(target.textContent).toContain('Negative feedback loop');
 		expect(caughtErrors).toEqual([]);
 	});

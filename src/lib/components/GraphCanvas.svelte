@@ -20,7 +20,8 @@
 	}
 	interface SimLink extends SimulationLinkDatum<SimNode> {
 		id: string;
-		type: RelationType;
+		type: RelationType | string;
+		direction: 'forward' | 'both';
 		description: string | null;
 	}
 
@@ -28,15 +29,27 @@
 		concepts,
 		relations,
 		selectedId = null,
+		selectedRelationId = null,
+		relationMeta = RELATION_META,
 		onSelect,
+		onSelectRelation,
 		onNodeMoved
 	}: {
 		concepts: ClientConcept[];
 		relations: ClientRelation[];
 		selectedId?: string | null;
+		selectedRelationId?: string | null;
+		relationMeta?: Record<string, { label: string; phrase: string; color: string; directional: boolean }>;
 		onSelect: (id: string) => void;
+		onSelectRelation?: (id: string) => void;
 		onNodeMoved: (id: string, x: number, y: number) => void;
 	} = $props();
+
+	function metaFor(type: string) {
+		return relationMeta[type] ?? { label: type, phrase: type, color: '#64748b', directional: true };
+	}
+
+	const allTypes = $derived(Array.from(new Set([...Object.keys(RELATION_META), ...relations.map((r) => r.type)])));
 
 	let container: HTMLDivElement | undefined = $state();
 	let width = $state(900);
@@ -233,6 +246,7 @@
 			.map((r) => ({
 				id: r.id,
 				type: r.type,
+				direction: r.direction,
 				description: r.description,
 				source: r.sourceId,
 				target: r.targetId
@@ -414,10 +428,10 @@
 		const w = Math.max(Math.max(...xs) - minX + pad, 200);
 		const h = Math.max(Math.max(...ys) - minY + pad, 200);
 
-		const defs = Object.entries(RELATION_META)
-			.filter(([, m]) => m.directional)
+		const defs = allTypes
 			.map(
-				([type, m]) => `<marker id="export-arrow-${type}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${m.color}" /></marker>`
+				(type) =>
+					`<marker id="export-arrow-${type}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${metaFor(type).color}" /></marker>`
 			)
 			.join('');
 
@@ -425,9 +439,10 @@
 			.map((link) => {
 				const endpoints = linkEndpoints(link);
 				if (!endpoints) return '';
-				const meta = RELATION_META[link.type];
-				const markerAttr = meta.directional ? ` marker-end="url(#export-arrow-${link.type})"` : '';
-				return `<line x1="${endpoints.x1}" y1="${endpoints.y1}" x2="${endpoints.x2}" y2="${endpoints.y2}" stroke="${meta.color}" stroke-width="2" stroke-opacity="0.8"${markerAttr} />`;
+				const meta = metaFor(link.type);
+				const markerEnd = ` marker-end="url(#export-arrow-${link.type})"`;
+				const markerStart = link.direction === 'both' ? ` marker-start="url(#export-arrow-${link.type})"` : '';
+				return `<line x1="${endpoints.x1}" y1="${endpoints.y1}" x2="${endpoints.x2}" y2="${endpoints.y2}" stroke="${meta.color}" stroke-width="2" stroke-opacity="0.8"${markerEnd}${markerStart} />`;
 			})
 			.join('');
 
@@ -508,20 +523,19 @@
 >
 	<svg width="100%" height="100%">
 		<defs>
-			{#each Object.entries(RELATION_META) as [type, meta] (type)}
-				{#if meta.directional}
-					<marker
-						id="arrow-{type}"
-						viewBox="0 0 10 10"
-						refX="9"
-						refY="5"
-						markerWidth="7"
-						markerHeight="7"
-						orient="auto-start-reverse"
-					>
-						<path d="M 0 0 L 10 5 L 0 10 z" fill={meta.color} />
-					</marker>
-				{/if}
+			{#each allTypes as type (type)}
+				{@const meta = metaFor(type)}
+				<marker
+					id="arrow-{type}"
+					viewBox="0 0 10 10"
+					refX="9"
+					refY="5"
+					markerWidth="7"
+					markerHeight="7"
+					orient="auto-start-reverse"
+				>
+					<path d="M 0 0 L 10 5 L 0 10 z" fill={meta.color} />
+				</marker>
 			{/each}
 		</defs>
 
@@ -529,19 +543,48 @@
 			{#each simLinks as link (link.id)}
 				{@const endpoints = linkEndpoints(link)}
 				{#if endpoints}
-					{@const meta = RELATION_META[link.type]}
-					<line
-						x1={endpoints.x1}
-						y1={endpoints.y1}
-						x2={endpoints.x2}
-						y2={endpoints.y2}
-						stroke={meta.color}
-						stroke-width="2"
-						stroke-opacity="0.75"
-						marker-end={meta.directional ? `url(#arrow-${link.type})` : undefined}
+					{@const meta = metaFor(link.type)}
+					<g
+						role="button"
+						tabindex="0"
+						class="cursor-pointer"
+						onpointerdown={(e) => e.stopPropagation()}
+						onclick={(e) => {
+							e.stopPropagation();
+							onSelectRelation?.(link.id);
+						}}
+						onkeydown={(e) => {
+							if (e.key === 'Enter') onSelectRelation?.(link.id);
+						}}
 					>
-						<title>{endpoints.source.name} — {meta.label.toLowerCase()} — {endpoints.target.name}{link.description ? `: ${link.description}` : ''}</title>
-					</line>
+						<!-- Wide, invisible hit-area so thin lines are still easy to click. -->
+						<line
+							x1={endpoints.x1}
+							y1={endpoints.y1}
+							x2={endpoints.x2}
+							y2={endpoints.y2}
+							stroke="transparent"
+							stroke-width="14"
+						/>
+						<line
+							x1={endpoints.x1}
+							y1={endpoints.y1}
+							x2={endpoints.x2}
+							y2={endpoints.y2}
+							stroke={meta.color}
+							stroke-width={selectedRelationId === link.id ? 3.5 : 2}
+							stroke-opacity={selectedRelationId === link.id ? 1 : 0.75}
+							marker-end="url(#arrow-{link.type})"
+							marker-start={link.direction === 'both' ? `url(#arrow-${link.type})` : undefined}
+						>
+							<title
+								>{endpoints.source.name} — {meta.label.toLowerCase()} — {endpoints.target
+									.name}{link.direction === 'both' ? ' (both ways)' : ''}{link.description
+									? `: ${link.description}`
+									: ''}</title
+							>
+						</line>
+					</g>
 				{/if}
 			{/each}
 
