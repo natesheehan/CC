@@ -5,8 +5,6 @@
 
 	let { data, children } = $props();
 
-	let statsOpen = $state(false);
-
 	const tabs = [
 		{ href: '/', label: 'How to' },
 		{ href: '/maps', label: 'Maps' },
@@ -48,30 +46,7 @@
 
 			{#if data.user}
 				<div class="flex items-center gap-3">
-					<div class="relative">
-						<button
-							type="button"
-							onclick={() => (statsOpen = !statsOpen)}
-							class="flex items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-slate-100"
-							aria-haspopup="true"
-							aria-expanded={statsOpen}
-						>
-							<span
-								class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold text-white"
-								style="background-color: {data.user.color}"
-							>
-								{data.user.name.slice(0, 2).toUpperCase()}
-							</span>
-							<span class="text-sm text-slate-600">{data.user.name}</span>
-						</button>
-						<UserStatsPopover
-							userId={data.user.id}
-							name={data.user.name}
-							color={data.user.color}
-							open={statsOpen}
-							onClose={() => (statsOpen = false)}
-						/>
-					</div>
+					<UserStatsPopover userId={data.user.id} name={data.user.name} color={data.user.color} />
 					<form method="POST" action="/logout">
 						<button
 							type="submit"
