@@ -287,6 +287,41 @@
 		savingMapName = false;
 	}
 
+	// --- edit map description ----------------------------------------------
+	let editingMapDescription = $state(false);
+	let mapDescriptionDraft = $state(untrack(() => data.map.description ?? ''));
+	let savingMapDescription = $state(false);
+	let mapDescriptionError = $state('');
+	let mapDescriptionInputEl: HTMLTextAreaElement | undefined = $state();
+
+	function startEditingMapDescription() {
+		mapDescriptionDraft = data.map.description ?? '';
+		mapDescriptionError = '';
+		editingMapDescription = true;
+	}
+
+	$effect(() => {
+		if (editingMapDescription) mapDescriptionInputEl?.focus();
+	});
+
+	async function saveMapDescription() {
+		const description = mapDescriptionDraft.trim();
+		if (description === (data.map.description ?? '')) {
+			editingMapDescription = false;
+			return;
+		}
+		savingMapDescription = true;
+		mapDescriptionError = '';
+		try {
+			await api(`/maps/${data.map.id}`, { method: 'PATCH', body: JSON.stringify({ description }) });
+			await invalidateAll();
+			editingMapDescription = false;
+		} catch (err) {
+			mapDescriptionError = err instanceof Error ? err.message : 'Could not update the description.';
+		}
+		savingMapDescription = false;
+	}
+
 	// --- delete map -------------------------------------------------------------
 	let confirmDeleteMap = $state(false);
 	let deletingMap = $state(false);
@@ -297,7 +332,7 @@
 		deleteMapError = '';
 		try {
 			await api(`/maps/${data.map.id}`, { method: 'DELETE' });
-			await goto('/');
+			await goto('/maps');
 		} catch (err) {
 			deleteMapError = err instanceof Error ? err.message : 'Could not delete the map.';
 			deletingMap = false;
@@ -336,7 +371,7 @@
 	     floating toolbar over the canvas instead, so this is just wayfinding. -->
 	<div class="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
 		<a
-			href="/"
+			href="/maps"
 			class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
 			aria-label="Back to maps"
 		>
@@ -367,6 +402,43 @@
 				<button onclick={startEditingMapName} class="group flex items-center gap-1.5" aria-label="Rename map">
 					<h1 class="truncate font-semibold tracking-tight text-slate-800 group-hover:text-blue-600">{data.map.name}</h1>
 					<span class="text-sm text-slate-300 group-hover:text-slate-500">✎</span>
+				</button>
+			{/if}
+
+			{#if editingMapDescription}
+				<div class="mt-0.5 flex items-start gap-1.5">
+					<textarea
+						bind:this={mapDescriptionInputEl}
+						bind:value={mapDescriptionDraft}
+						rows="1"
+						placeholder="Add a description…"
+						onblur={saveMapDescription}
+						onkeydown={(e) => {
+							if (e.key === 'Enter' && !e.shiftKey) {
+								e.preventDefault();
+								(e.target as HTMLTextAreaElement).blur();
+							}
+							if (e.key === 'Escape') editingMapDescription = false;
+						}}
+						disabled={savingMapDescription}
+						class="w-full max-w-md resize-none rounded-md border border-blue-300 px-2 py-1 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+					></textarea>
+				</div>
+				{#if mapDescriptionError}
+					<p class="mt-0.5 text-xs text-red-600">{mapDescriptionError}</p>
+				{/if}
+			{:else}
+				<button
+					onclick={startEditingMapDescription}
+					class="group mt-0.5 flex max-w-md items-start gap-1.5 text-left"
+					aria-label="Edit map description"
+				>
+					{#if data.map.description}
+						<p class="truncate text-xs text-slate-400 group-hover:text-slate-600">{data.map.description}</p>
+					{:else}
+						<p class="text-xs italic text-slate-300 group-hover:text-slate-500">Add a description…</p>
+					{/if}
+					<span class="shrink-0 text-xs text-slate-300 group-hover:text-slate-500">✎</span>
 				</button>
 			{/if}
 		</div>

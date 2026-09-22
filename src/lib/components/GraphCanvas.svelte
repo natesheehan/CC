@@ -89,20 +89,29 @@
 			})
 			.sort((a, b) => a.id.localeCompare(b.id));
 		const index = pairLinks.findIndex((candidate) => candidate.id === link.id);
-		const offset = (index - (pairLinks.length - 1) / 2) * 18;
+		const offset = (index - (pairLinks.length - 1) / 2) * 32;
 		const dx = target.x - source.x;
 		const dy = target.y - source.y;
 		const distance = Math.hypot(dx, dy) || 1;
 		const perpendicularX = (-dy / distance) * offset;
 		const perpendicularY = (dx / distance) * offset;
+		const midX = (source.x + target.x) / 2 + perpendicularX;
+		const midY = (source.y + target.y) / 2 + perpendicularY;
 
+		// Anchor both ends at the actual node centers (so links visibly meet at
+		// each node) but bow the middle out via a quadratic curve — with more
+		// than one relation between the same pair, each one arcs a different
+		// amount instead of drawing an identical, indistinguishable line.
 		return {
 			source,
 			target,
-			x1: source.x + perpendicularX,
-			y1: source.y + perpendicularY,
-			x2: target.x + perpendicularX,
-			y2: target.y + perpendicularY
+			x1: source.x,
+			y1: source.y,
+			x2: target.x,
+			y2: target.y,
+			cx: midX,
+			cy: midY,
+			path: `M ${source.x} ${source.y} Q ${midX} ${midY} ${target.x} ${target.y}`
 		};
 	}
 
@@ -442,7 +451,7 @@
 				const meta = metaFor(link.type);
 				const markerEnd = ` marker-end="url(#export-arrow-${link.type})"`;
 				const markerStart = link.direction === 'both' ? ` marker-start="url(#export-arrow-${link.type})"` : '';
-				return `<line x1="${endpoints.x1}" y1="${endpoints.y1}" x2="${endpoints.x2}" y2="${endpoints.y2}" stroke="${meta.color}" stroke-width="2" stroke-opacity="0.8"${markerEnd}${markerStart} />`;
+				return `<path d="${endpoints.path}" fill="none" stroke="${meta.color}" stroke-width="2" stroke-opacity="0.8"${markerEnd}${markerStart} />`;
 			})
 			.join('');
 
@@ -558,19 +567,10 @@
 						}}
 					>
 						<!-- Wide, invisible hit-area so thin lines are still easy to click. -->
-						<line
-							x1={endpoints.x1}
-							y1={endpoints.y1}
-							x2={endpoints.x2}
-							y2={endpoints.y2}
-							stroke="transparent"
-							stroke-width="14"
-						/>
-						<line
-							x1={endpoints.x1}
-							y1={endpoints.y1}
-							x2={endpoints.x2}
-							y2={endpoints.y2}
+						<path d={endpoints.path} fill="none" stroke="transparent" stroke-width="14" />
+						<path
+							d={endpoints.path}
+							fill="none"
 							stroke={meta.color}
 							stroke-width={selectedRelationId === link.id ? 3.5 : 2}
 							stroke-opacity={selectedRelationId === link.id ? 1 : 0.75}
@@ -583,7 +583,7 @@
 									? `: ${link.description}`
 									: ''}</title
 							>
-						</line>
+						</path>
 					</g>
 				{/if}
 			{/each}
