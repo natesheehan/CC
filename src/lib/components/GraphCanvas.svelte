@@ -90,8 +90,17 @@
 			.sort((a, b) => a.id.localeCompare(b.id));
 		const index = pairLinks.findIndex((candidate) => candidate.id === link.id);
 		const offset = (index - (pairLinks.length - 1) / 2) * 32;
-		const dx = target.x - source.x;
-		const dy = target.y - source.y;
+
+		// Base the perpendicular direction on a canonical (direction-independent)
+		// ordering of the two node ids, not this link's own source/target order.
+		// Two relations between the same pair can be stored in opposite
+		// directions (A->B and B->A) — using each link's own order would flip
+		// the sign of the offset in lockstep with the reversed endpoints,
+		// producing the exact same curve traced backwards instead of a
+		// separate, visibly offset one.
+		const [a, b] = source.id < target.id ? [source, target] : [target, source];
+		const dx = b.x! - a.x!;
+		const dy = b.y! - a.y!;
 		const distance = Math.hypot(dx, dy) || 1;
 		const perpendicularX = (-dy / distance) * offset;
 		const perpendicularY = (dx / distance) * offset;
