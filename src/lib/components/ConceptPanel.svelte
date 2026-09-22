@@ -101,7 +101,7 @@
 	}
 </script>
 
-<aside class="flex h-full w-full flex-col overflow-y-auto border-l border-slate-200 bg-white">
+<aside class="flex h-full w-full flex-col overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
 	<div class="flex items-start justify-between gap-2 border-b border-slate-100 p-4">
 		<div class="min-w-0">
 			<div class="flex items-center gap-1.5">

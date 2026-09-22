@@ -366,10 +366,13 @@
 	<title>{data.map.name} · Concept Cartography</title>
 </svelte:head>
 
-<div class="flex flex-1 flex-col overflow-hidden">
+<div class="flex flex-1 flex-col overflow-hidden bg-slate-50">
 	<!-- Toolbar: kept deliberately minimal — every map action lives in the
-	     floating toolbar over the canvas instead, so this is just wayfinding. -->
-	<div class="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
+	     floating toolbar over the canvas instead, so this is just wayfinding.
+	     Bounded to the same max-w-7xl rhythm as the global site header so it
+	     doesn't read as a raw, edge-to-edge strip on wide screens. -->
+	<div class="border-b border-slate-200 bg-white">
+		<div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-2.5 sm:px-6">
 		<a
 			href="/maps"
 			class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
@@ -377,6 +380,8 @@
 		>
 			←
 		</a>
+
+		<div class="h-8 w-px shrink-0 bg-slate-200"></div>
 
 		<div class="min-w-0 flex-1">
 			{#if editingMapName}
@@ -445,17 +450,18 @@
 
 		<button
 			onclick={() => (confirmDeleteMap = true)}
-			class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+			class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-red-100 hover:bg-red-50 hover:text-red-600"
 			aria-label="Delete map"
 			title="Delete map"
 		>
 			🗑
 		</button>
+		</div>
 	</div>
 
 	<!-- Body -->
-	<div class="relative flex flex-1 overflow-hidden">
-		<div class="relative flex-1">
+	<div class="relative mx-auto flex w-full max-w-7xl flex-1 gap-3 overflow-hidden p-3 sm:p-4">
+		<div class="relative flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 			<!-- Floating map toolbar — every map action lives here, overlaid on
 			     the canvas like a professional mapping app (Figma/Google-Maps
 			     style), grouped and styled consistently for a sleeker feel. -->

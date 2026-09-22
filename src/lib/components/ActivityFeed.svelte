@@ -15,7 +15,7 @@
 	};
 </script>
 
-<aside class="flex h-full w-full flex-col overflow-y-auto border-l border-slate-200 bg-white">
+<aside class="flex h-full w-full flex-col overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
 	<div class="flex items-center justify-between border-b border-slate-100 p-4">
 		<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Activity</h2>
 		<button onclick={onClose} class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">
