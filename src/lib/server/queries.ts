@@ -1,7 +1,7 @@
 import { eq, desc, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { db } from './db';
-import { maps, concepts, conceptRelations, relationTypes, relationComments, users } from './db/schema';
+import { maps, concepts, conceptRelations, relationTypes, relationComments, activityLog, users } from './db/schema';
 
 const creator = alias(users, 'creator');
 const editor = alias(users, 'editor');
@@ -151,4 +151,54 @@ export async function getRelationComments(relationId: string) {
 		.where(eq(relationComments.relationId, relationId))
 		.orderBy(relationComments.createdAt)
 		.all();
+}
+
+// Lightweight cross-map profile stats for the "click your name" popover —
+// counts, not full rows, so this stays cheap even for a prolific user.
+export async function getUserStats(userId: string) {
+	const [
+		mapsCreated,
+		conceptsCreated,
+		relationsCreated,
+		commentsPosted,
+		totalActions,
+		mapsContributedTo,
+		lastActive,
+		topRelationType
+	] = await Promise.all([
+		db.select({ count: sql<number>`count(*)` }).from(maps).where(eq(maps.createdBy, userId)).get(),
+		db.select({ count: sql<number>`count(*)` }).from(concepts).where(eq(concepts.createdBy, userId)).get(),
+		db
+			.select({ count: sql<number>`count(*)` })
+			.from(conceptRelations)
+			.where(eq(conceptRelations.createdBy, userId))
+			.get(),
+		db.select({ count: sql<number>`count(*)` }).from(relationComments).where(eq(relationComments.userId, userId)).get(),
+		db.select({ count: sql<number>`count(*)` }).from(activityLog).where(eq(activityLog.userId, userId)).get(),
+		db
+			.select({ count: sql<number>`count(distinct ${activityLog.mapId})` })
+			.from(activityLog)
+			.where(eq(activityLog.userId, userId))
+			.get(),
+		db.select({ at: sql<number | null>`max(${activityLog.createdAt})` }).from(activityLog).where(eq(activityLog.userId, userId)).get(),
+		db
+			.select({ type: conceptRelations.type, count: sql<number>`count(*)` })
+			.from(conceptRelations)
+			.where(eq(conceptRelations.createdBy, userId))
+			.groupBy(conceptRelations.type)
+			.orderBy(sql`count(*) desc`)
+			.limit(1)
+			.get()
+	]);
+
+	return {
+		mapsCreated: mapsCreated?.count ?? 0,
+		conceptsCreated: conceptsCreated?.count ?? 0,
+		relationsCreated: relationsCreated?.count ?? 0,
+		commentsPosted: commentsPosted?.count ?? 0,
+		totalActions: totalActions?.count ?? 0,
+		mapsContributedTo: mapsContributedTo?.count ?? 0,
+		lastActiveAt: lastActive?.at ?? null,
+		topRelationType: topRelationType?.type ?? null
+	};
 }
