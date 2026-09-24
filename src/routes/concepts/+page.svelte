@@ -48,21 +48,30 @@
 	<title>Concept directory · Concept Cartography</title>
 </svelte:head>
 
-<div class="dictionary-page mx-auto w-full max-w-5xl flex-1 px-4 py-10 sm:px-6 lg:py-14">
-	<div class="dictionary-intro">
-		<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">The shared lexicon</p>
-		<h1 class="mt-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">Concept dictionary</h1>
-		<p class="mt-4 max-w-2xl text-lg leading-relaxed text-slate-600">
+
+<div class="dictionary-page flex-1">
+	<section class="shared-page-hero relative overflow-hidden border-b border-slate-200 bg-white">
+		<div class="community-grid absolute inset-0" aria-hidden="true"></div>
+		<div class="community-orbit community-orbit-one absolute" aria-hidden="true"></div>
+		<div class="community-orbit community-orbit-two absolute" aria-hidden="true"></div>
+		<div class="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20">
+			<div class="dictionary-intro max-w-2xl community-reveal">
+				<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">The shared lexicon</p>
+				<h1 class="mt-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl">Concept dictionary</h1>
+				<p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">
 			Browse the ideas that make up every map. Select an entry to read its definition and see where
 			it appears across the community.
-		</p>
-		<div class="mt-6 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
+				</p>
+				<div class="mt-5 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
 			<span class="rounded-full bg-blue-50 px-3 py-1.5 text-blue-700">{data.concepts.length} entries</span>
 			<span class="rounded-full bg-slate-100 px-3 py-1.5">{grouped.length} letter groups</span>
+				</div>
+			</div>
 		</div>
-	</div>
+	</section>
 
-	<div class="dictionary-tools mt-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+	<div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:py-14">
+	<div class="dictionary-tools flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<label class="relative block w-full sm:max-w-md">
 			<span class="sr-only">Search concepts</span>
 			<input
@@ -122,6 +131,7 @@
 			{/each}
 		</div>
 	{/if}
+	</div>
 </div>
 
 {#if selectedConcept}

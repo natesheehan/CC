@@ -12,20 +12,24 @@
 	<meta name="description" content="Guides to using, understanding, and contributing to Concept Cartography." />
 </svelte:head>
 
-<div class="docs-hub-page mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6 lg:py-14">
-	<section class="docs-hub-hero relative overflow-hidden rounded-3xl px-6 py-12 sm:px-10 sm:py-16">
-		<div class="docs-hub-grid absolute inset-0" aria-hidden="true"></div>
-		<div class="docs-hub-orbit absolute" aria-hidden="true"></div>
-		<div class="relative max-w-2xl">
-			<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">The field guide</p>
-			<h1 class="mt-4 text-4xl font-bold tracking-tight text-white sm:text-6xl">Make the invisible visible.</h1>
-			<p class="mt-5 max-w-xl text-lg leading-relaxed text-slate-300">
+
+<div class="docs-hub-page flex-1">
+	<section class="shared-page-hero relative overflow-hidden border-b border-slate-200 bg-white">
+		<div class="community-grid absolute inset-0" aria-hidden="true"></div>
+		<div class="community-orbit community-orbit-one absolute" aria-hidden="true"></div>
+		<div class="community-orbit community-orbit-two absolute" aria-hidden="true"></div>
+		<div class="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20">
+			<div class="max-w-2xl community-reveal">
+				<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">The field guide</p>
+				<h1 class="mt-4 text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl">Make the invisible visible.</h1>
+				<p class="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
 				Learn how to use Concept Cartography, why relational thinking matters, and how to help a shared atlas grow.
-			</p>
+				</p>
+			</div>
 		</div>
 	</section>
 
-	<section class="mt-12" aria-labelledby="guides-heading">
+	<section class="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:py-14" aria-labelledby="guides-heading">
 		<div class="flex items-end justify-between gap-4">
 			<div>
 				<p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Four ways in</p>

@@ -14,27 +14,36 @@
 </svelte:head>
 
 
-<div class="maps-directory mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6 lg:py-14">
-	<div class="maps-intro flex flex-wrap items-end justify-between gap-6">
-		<div>
-			<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Your atlas</p>
-			<h1 class="mt-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">Concept maps</h1>
-			<p class="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">
+
+<div class="maps-directory flex-1">
+	<section class="shared-page-hero relative overflow-hidden border-b border-slate-200 bg-white">
+		<div class="community-grid absolute inset-0" aria-hidden="true"></div>
+		<div class="community-orbit community-orbit-one absolute" aria-hidden="true"></div>
+		<div class="community-orbit community-orbit-two absolute" aria-hidden="true"></div>
+		<div class="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20">
+			<div class="maps-intro flex flex-wrap items-end justify-between gap-6">
+				<div class="max-w-2xl community-reveal">
+					<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Your atlas</p>
+					<h1 class="mt-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl">Concept maps</h1>
+					<p class="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
 				Build networks of ideas, define how they relate, and keep the whole picture in view.
-			</p>
-			<div class="mt-5 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
+					</p>
+					<div class="mt-5 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
 				<span class="rounded-full bg-blue-50 px-3 py-1.5 text-blue-700">{data.myMaps.length + data.otherMaps.length} maps</span>
 				<span class="rounded-full bg-slate-100 px-3 py-1.5">{data.myMaps.length} created by you</span>
+					</div>
+				</div>
+				<button
+					onclick={() => (showCreate = true)}
+					class="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700"
+				>
+					<span class="text-lg leading-none">+</span> New map
+				</button>
 			</div>
 		</div>
-		<button
-			onclick={() => (showCreate = true)}
-			class="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700"
-		>
-			<span class="text-lg leading-none">+</span> New map
-		</button>
-	</div>
+	</section>
 
+	<div class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">
 	{#if data.myMaps.length === 0 && data.otherMaps.length === 0}
 		<div class="mt-16 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 py-20 text-center">
 			<p class="text-slate-500">No maps yet. Create the first one to get started.</p>
@@ -70,6 +79,7 @@
 			{/if}
 		</section>
 	{/if}
+	</div>
 </div>
 
 {#snippet mapGrid(maps: PageData['myMaps'])}
