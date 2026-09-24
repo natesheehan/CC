@@ -20,7 +20,7 @@
 		<div class="community-grid absolute inset-0" aria-hidden="true"></div>
 		<div class="community-orbit community-orbit-one absolute" aria-hidden="true"></div>
 		<div class="community-orbit community-orbit-two absolute" aria-hidden="true"></div>
-		<div class="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20">
+		<div class="relative mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20">
 			<div class="maps-intro flex flex-wrap items-end justify-between gap-6">
 				<div class="max-w-2xl community-reveal">
 					<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Your atlas</p>

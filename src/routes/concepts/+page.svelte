@@ -54,7 +54,7 @@
 		<div class="community-grid absolute inset-0" aria-hidden="true"></div>
 		<div class="community-orbit community-orbit-one absolute" aria-hidden="true"></div>
 		<div class="community-orbit community-orbit-two absolute" aria-hidden="true"></div>
-		<div class="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20">
+		<div class="relative mx-auto max-w-5xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20">
 			<div class="dictionary-intro max-w-2xl community-reveal">
 				<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">The shared lexicon</p>
 				<h1 class="mt-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl">Concept dictionary</h1>
