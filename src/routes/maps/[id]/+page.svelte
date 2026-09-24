@@ -17,6 +17,7 @@
 	let { data }: { data: PageData } = $props();
 
 	let selectedConceptId: string | null = $state(null);
+	let centralConceptId: string | null = $state(null);
 	let rightPanel: 'none' | 'concept' | 'activity' = $state('none');
 	let showLegend = $state(true);
 	const relationMeta = $derived(mergeRelationMeta(data.relationTypes));
@@ -83,6 +84,14 @@
 		selectedConceptId = id;
 		rightPanel = 'concept';
 		updateUrlParam('concept', id);
+	}
+
+	function setCentralConcept() {
+		if (selectedConceptId) centralConceptId = selectedConceptId;
+	}
+
+	function arrangeAroundCentral() {
+		if (centralConceptId) graphRef?.reArrangeAround(centralConceptId);
 	}
 
 	// Deep-link support: on load (and whenever the URL changes), open the
@@ -473,6 +482,28 @@
 				<div class="mx-0.5 h-6 w-px shrink-0 bg-slate-200"></div>
 
 				<button
+					onclick={setCentralConcept}
+					disabled={!selectedConceptId}
+					class="flex h-9 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+					title="Set selected concept as central"
+				>
+					<span aria-hidden="true">✦</span>
+					<span>Set center</span>
+				</button>
+
+				<button
+					onclick={arrangeAroundCentral}
+					disabled={!centralConceptId}
+					class="flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
+					title="Arrange the map around the central concept"
+				>
+					<span aria-hidden="true">◎</span>
+					<span>Arrange</span>
+				</button>
+
+				<div class="mx-0.5 h-6 w-px shrink-0 bg-slate-200"></div>
+
+				<button
 					onclick={() => (conceptModal = { mode: 'create' })}
 					class="flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
 				>
@@ -557,6 +588,7 @@
 					concepts={data.concepts}
 					relations={visibleRelations}
 					selectedId={selectedConceptId}
+					centralId={centralConceptId}
 					selectedRelationId={selectedRelationId}
 					relationMeta={relationMeta}
 					onSelect={selectConcept}

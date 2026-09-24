@@ -81,6 +81,7 @@
 	.dark .theme-toggle { color: #cbd5e1; }
 	.dark .concept-node { fill: #1e293b; stroke: #64748b; }
 	.dark .concept-node.selected { stroke: #60a5fa; }
+	.dark .concept-node.central { fill: #3b2a12; stroke: #fbbf24; }
 	.dark .map-legend .text-slate-600 { color: #e2e8f0; }
 	.dark .map-legend .text-slate-500 { color: #cbd5e1; }
 	.dark .map-legend .text-slate-300 { color: #94a3b8; }
@@ -173,6 +174,15 @@
 
 .theme-toggle[aria-checked='true'] .theme-toggle-thumb {
 	transform: translateX(1.5rem);
+}
+
+.map-dimmed {
+	opacity: 0.18;
+	transition: opacity 240ms ease;
+}
+
+.concept-node.central {
+	filter: drop-shadow(0 0 8px rgb(245 158 11 / 0.5));
 }
 
 .community-hero {

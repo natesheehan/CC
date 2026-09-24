@@ -31,6 +31,7 @@
 		selectedId = null,
 		selectedRelationId = null,
 		relationMeta = RELATION_META,
+		centralId = null,
 		onSelect,
 		onSelectRelation,
 		onNodeMoved
@@ -40,6 +41,7 @@
 		selectedId?: string | null;
 		selectedRelationId?: string | null;
 		relationMeta?: Record<string, { label: string; phrase: string; color: string; directional: boolean }>;
+		centralId?: string | null;
 		onSelect: (id: string) => void;
 		onSelectRelation?: (id: string) => void;
 		onNodeMoved: (id: string, x: number, y: number) => void;
@@ -47,6 +49,13 @@
 
 	function metaFor(type: string) {
 		return relationMeta[type] ?? { label: type, phrase: type, color: '#64748b', directional: true };
+	}
+
+	function isCentralConnection(link: SimLink): boolean {
+		if (!centralId) return true;
+		const source = resolveEnd(link.source);
+		const target = resolveEnd(link.target);
+		return source?.id === centralId || target?.id === centralId;
 	}
 
 	const allTypes = $derived(Array.from(new Set([...Object.keys(RELATION_META), ...relations.map((r) => r.type)])));
@@ -406,6 +415,51 @@
 		simulation.alpha(1).restart();
 	}
 
+	export function reArrangeAround(nodeId: string) {
+		const center = simNodes.find((node) => node.id === nodeId);
+		if (!center) return;
+
+		const distances = new Map<string, number>([[nodeId, 0]]);
+		const queue = [nodeId];
+		while (queue.length > 0) {
+			const current = queue.shift()!;
+			const nextDistance = distances.get(current)! + 1;
+			for (const link of simLinks) {
+				const source = resolveEnd(link.source)?.id;
+				const target = resolveEnd(link.target)?.id;
+				const next = source === current ? target : target === current ? source : undefined;
+				if (next && !distances.has(next)) {
+					distances.set(next, nextDistance);
+					queue.push(next);
+				}
+			}
+		}
+
+		const layers = new Map<number, SimNode[]>();
+		for (const node of simNodes) {
+			const distance = distances.get(node.id) ?? Math.max(2, distances.size);
+			const layer = layers.get(distance) ?? [];
+			layer.push(node);
+			layers.set(distance, layer);
+		}
+
+		const centerX = width / 2;
+		const centerY = height / 2;
+		center.x = center.fx = centerX;
+		center.y = center.fy = centerY;
+		for (const [distance, nodes] of layers) {
+			if (distance === 0) continue;
+			const radius = Math.min(width, height) * (distance === 1 ? 0.24 : 0.2 + distance * 0.1);
+			nodes.forEach((node, index) => {
+				const angle = (index / nodes.length) * Math.PI * 2 - Math.PI / 2;
+				node.x = node.fx = centerX + Math.cos(angle) * radius;
+				node.y = node.fy = centerY + Math.sin(angle) * radius;
+			});
+		}
+		simNodes = [...simNodes];
+		simulation.alpha(0.35).restart();
+	}
+
 	// --- image export -----------------------------------------------------------
 	// Built independently from the live interactive SVG (which uses
 	// <foreignObject> for node labels) because rasterizing foreignObject
@@ -565,7 +619,7 @@
 					<g
 						role="button"
 						tabindex="0"
-						class="cursor-pointer"
+						class="cursor-pointer {centralId && !isCentralConnection(link) ? 'map-dimmed' : ''}"
 						onpointerdown={(e) => e.stopPropagation()}
 						onclick={(e) => {
 							e.stopPropagation();
@@ -613,15 +667,15 @@
 						}}
 					>
 						<circle
-							r={selectedId === node.id ? 40 : 36}
+							r={centralId === node.id ? 48 : selectedId === node.id ? 40 : 36}
 							fill="white"
-							stroke={selectedId === node.id ? '#2563eb' : '#cbd5e1'}
-							stroke-width={selectedId === node.id ? 3 : 1.5}
-							class="concept-node {selectedId === node.id ? 'selected' : ''} drop-shadow-sm transition-[r,stroke]"
+							stroke={centralId === node.id ? '#f59e0b' : selectedId === node.id ? '#2563eb' : '#cbd5e1'}
+							stroke-width={centralId === node.id ? 4 : selectedId === node.id ? 3 : 1.5}
+							class="concept-node {selectedId === node.id ? 'selected' : ''} {centralId === node.id ? 'central' : ''} {centralId && centralId !== node.id && !simLinks.some((link) => (resolveEnd(link.source)?.id === centralId && resolveEnd(link.target)?.id === node.id) || (resolveEnd(link.target)?.id === centralId && resolveEnd(link.source)?.id === node.id)) ? 'map-dimmed' : ''} drop-shadow-sm transition-[r,stroke]"
 						/>
-						<foreignObject x="-34" y="-34" width="68" height="68" class="pointer-events-none">
+						<foreignObject x="-40" y="-40" width="80" height="80" class="pointer-events-none">
 							<div
-								class="flex h-full w-full items-center justify-center px-1 text-center text-[10px] font-medium leading-tight text-slate-700"
+								class="flex h-full w-full items-center justify-center px-1 text-center text-[11px] font-bold leading-tight text-slate-700"
 							>
 								{node.name}
 							</div>
