@@ -2,14 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+	--memphis-pink: #ff3d81;
+	--memphis-pink-deep: #c81762;
+	--memphis-yellow: #ffd23f;
+	--memphis-cyan: #00c2d1;
+	--memphis-purple: #7c3aed;
+	--memphis-ink: #14110f;
+	--memphis-cream: #fff6e9;
+}
+
 @layer base {
 	html,
 	body {
 		height: 100%;
 	}
 	body {
-		@apply bg-slate-50 text-slate-900;
+		@apply text-slate-900;
+		background-color: var(--memphis-cream);
+		background-image: radial-gradient(circle, rgb(20 17 15 / 0.14) 1.5px, transparent 1.5px);
+		background-size: 20px 20px;
 		transition: background-color 240ms ease, color 240ms ease;
+	}
+	h1 {
+		font-family: 'Archivo Black', 'Inter', ui-sans-serif, sans-serif;
+		letter-spacing: -0.01em;
 	}
 	html {
 		color-scheme: light;
@@ -17,6 +34,10 @@
 	}
 	html.dark {
 		color-scheme: dark;
+	}
+	html.dark body {
+		background-color: #0f172a;
+		background-image: radial-gradient(circle, rgb(255 255 255 / 0.06) 1.5px, transparent 1.5px);
 	}
 }
 
@@ -685,6 +706,175 @@
 @keyframes map-stat-grow {
 	from { width: 0; }
 	to { width: var(--size); }
+}
+
+/* ---------------------------------------------------------------------------
+ * Memphis theme: bold color, thick outlines, offset hard shadows, and a
+ * confetti/polka-dot backdrop layered on top of the existing utility
+ * classes site-wide (the same technique used for dark-mode overrides above),
+ * so every card, button, and hero picks up the look without a per-component
+ * rewrite.
+ * ------------------------------------------------------------------------- */
+
+header.border-b {
+	border-bottom-width: 3px;
+	border-bottom-color: var(--memphis-ink);
+}
+
+footer.border-t {
+	border-top-width: 3px;
+	border-top-color: var(--memphis-ink);
+}
+
+.shadow-sm,
+.shadow,
+.shadow-md,
+.shadow-lg,
+.shadow-xl,
+.shadow-2xl {
+	box-shadow: 4px 4px 0 0 var(--memphis-ink) !important;
+}
+
+.dark .shadow-sm,
+.dark .shadow,
+.dark .shadow-md,
+.dark .shadow-lg,
+.dark .shadow-xl,
+.dark .shadow-2xl {
+	box-shadow: 4px 4px 0 0 var(--memphis-cyan) !important;
+}
+
+.border-slate-200,
+.border-slate-100,
+.border-slate-300 {
+	border-color: var(--memphis-ink) !important;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-100,
+.dark .border-slate-300 {
+	border-color: var(--memphis-yellow) !important;
+}
+
+.bg-blue-600,
+.bg-blue-500 {
+	background-color: var(--memphis-pink) !important;
+	border: 2px solid var(--memphis-ink);
+}
+
+.hover\:bg-blue-700:hover,
+.hover\:bg-blue-400:hover {
+	background-color: var(--memphis-pink-deep) !important;
+}
+
+.bg-blue-50 {
+	background-color: #ffe3ef !important;
+}
+
+.text-blue-600,
+.text-blue-700 {
+	color: var(--memphis-pink-deep) !important;
+}
+
+.hover\:text-blue-600:hover,
+.hover\:text-blue-700:hover {
+	color: var(--memphis-pink-deep) !important;
+}
+
+.focus\:ring-blue-500:focus {
+	--tw-ring-color: var(--memphis-pink) !important;
+}
+
+.shadow-blue-500\/30,
+.shadow-blue-600\/20 {
+	--tw-shadow-color: var(--memphis-pink) !important;
+}
+
+.bg-slate-900 {
+	background-color: var(--memphis-ink) !important;
+}
+
+.bg-slate-900\/40,
+.bg-slate-950\/50 {
+	background-color: rgb(20 17 15 / 0.55) !important;
+}
+
+/* Confetti/polka-dot backdrop + bold shape decorations shared by every
+   page hero (home, community, docs, maps, concepts). */
+.community-grid {
+	background-image: radial-gradient(var(--memphis-pink) 2px, transparent 2px),
+		radial-gradient(var(--memphis-cyan) 2px, transparent 2px),
+		radial-gradient(var(--memphis-yellow) 2px, transparent 2px);
+	background-size: 46px 46px, 46px 46px, 46px 46px;
+	background-position: 0 0, 15px 23px, 30px 8px;
+	opacity: 0.5;
+	mask-image: linear-gradient(to bottom, black, transparent 85%);
+}
+
+.community-orbit-one {
+	border: none;
+	border-radius: 9999px;
+	background: var(--memphis-yellow);
+	box-shadow: none;
+	opacity: 0.9;
+	animation: community-orbit 18s linear infinite;
+}
+
+.community-orbit-two {
+	border: none;
+	border-radius: 0;
+	clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+	background: var(--memphis-pink);
+	box-shadow: none;
+	opacity: 0.85;
+	animation: community-orbit 13s linear infinite reverse;
+}
+
+.theme-toggle-track {
+	border-width: 2px;
+	border-color: var(--memphis-ink);
+}
+
+.dark .theme-toggle-track {
+	border-color: var(--memphis-yellow);
+}
+
+.map-directory-card:hover,
+.dictionary-entry:hover,
+.docs-guide-card:hover {
+	transform: translateY(-3px) rotate(-0.4deg);
+}
+
+.memphis-badge {
+	display: inline-block;
+	transform: rotate(-2deg);
+	border: 2px solid var(--memphis-ink);
+	border-radius: 9999px;
+	background: var(--memphis-yellow);
+	padding: 0.3rem 0.9rem;
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--memphis-ink);
+	box-shadow: 3px 3px 0 0 var(--memphis-ink);
+}
+
+.memphis-shape {
+	opacity: 0.9;
+}
+
+.memphis-shape-circle {
+	border-radius: 9999px;
+	background: var(--memphis-cyan);
+	border: 3px solid var(--memphis-ink);
+	animation: community-orbit 20s linear infinite;
+}
+
+.memphis-shape-triangle {
+	clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+	background: var(--memphis-pink);
+	animation: community-orbit 15s linear infinite reverse;
 }
 
 @media (prefers-reduced-motion: reduce) {

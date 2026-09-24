@@ -11,7 +11,7 @@
 
 	// A tight, cohesive accent palette (cyan -> blue -> violet) so the graph
 	// reads as one intentional gradient rather than random confetti.
-	const PALETTE = ['#38bdf8', '#60a5fa', '#818cf8', '#a78bfa'];
+	const PALETTE = ['#ff3d81', '#ffd23f', '#00c2d1', '#7c3aed'];
 
 	let canvasEl: HTMLCanvasElement | undefined = $state();
 	let raf = 0;
@@ -130,7 +130,7 @@
 					const dist = Math.hypot(a.x - b.x, a.y - b.y);
 					if (dist < maxDist) {
 						const strength = 1 - dist / maxDist;
-						ctx!.strokeStyle = `rgba(148, 197, 253, ${strength * 0.28})`;
+						ctx!.strokeStyle = `rgba(255, 210, 63, ${strength * 0.3})`;
 						ctx!.lineWidth = 0.6 + strength * 0.6;
 						ctx!.beginPath();
 						ctx!.moveTo(a.x, a.y);
@@ -159,8 +159,8 @@
 				const fade = Math.sin(p.t * Math.PI); // ease in, ease out
 				ctx!.beginPath();
 				ctx!.arc(x, y, 1.8, 0, Math.PI * 2);
-				ctx!.fillStyle = `rgba(224, 242, 254, ${fade * 0.9})`;
-				ctx!.shadowColor = 'rgba(96, 165, 250, 0.9)';
+				ctx!.fillStyle = `rgba(255, 246, 233, ${fade * 0.9})`;
+				ctx!.shadowColor = 'rgba(255, 61, 129, 0.9)';
 				ctx!.shadowBlur = 6;
 				ctx!.fill();
 				ctx!.shadowBlur = 0;
@@ -182,7 +182,7 @@
 				ctx!.fill();
 				ctx!.shadowBlur = 0;
 
-				ctx!.fillStyle = `rgba(226, 232, 240, ${0.55 + pulse * 0.25})`;
+				ctx!.fillStyle = `rgba(255, 246, 233, ${0.55 + pulse * 0.25})`;
 				ctx!.fillText(n.label, n.x, n.y - 14);
 			}
 
