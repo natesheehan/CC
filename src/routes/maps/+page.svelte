@@ -7,18 +7,6 @@
 
 	let showCreate = $state(false);
 	let submitting = $state(false);
-
-	function previewPosition(index: number, total: number, x: number | null, y: number | null) {
-		if (x != null && y != null) {
-			return { x: 24 + ((x + 500) / 1000) * 272, y: 22 + ((y + 350) / 700) * 106 };
-		}
-		const columns = Math.max(1, Math.ceil(Math.sqrt(total * 1.6)));
-		const rows = Math.max(1, Math.ceil(total / columns));
-		return {
-			x: 28 + (index % columns) * (264 / Math.max(1, columns - 1)),
-			y: 24 + Math.floor(index / columns) * (100 / Math.max(1, rows - 1))
-		};
-	}
 </script>
 
 <svelte:head>
@@ -87,37 +75,29 @@
 {#snippet mapGrid(maps: PageData['myMaps'])}
 	<div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 		{#each maps as map (map.id)}
-			{@const preview = data.previews[map.id]}
 			<a
 				href="/maps/{map.id}"
 				class="map-directory-card group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition"
 			>
-				<div class="map-preview relative h-40 overflow-hidden bg-slate-900">
+				<div class="map-stats-banner relative overflow-hidden bg-slate-900 px-5 py-5">
 					<div class="map-preview-grid absolute inset-0" aria-hidden="true"></div>
-					{#if preview}
-						<svg viewBox="0 0 320 150" class="relative h-full w-full" aria-label="Preview of {map.name}" role="img">
-							{#each preview.relations as relation (relation.sourceId + relation.targetId)}
-								{@const sourceIndex = preview.concepts.findIndex((concept) => concept.id === relation.sourceId)}
-								{@const targetIndex = preview.concepts.findIndex((concept) => concept.id === relation.targetId)}
-								{#if sourceIndex >= 0 && targetIndex >= 0}
-									{@const source = previewPosition(sourceIndex, preview.concepts.length, preview.concepts[sourceIndex].x, preview.concepts[sourceIndex].y)}
-									{@const target = previewPosition(targetIndex, preview.concepts.length, preview.concepts[targetIndex].x, preview.concepts[targetIndex].y)}
-									<line x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke="#60a5fa" stroke-opacity="0.42" stroke-width="1.2" />
-								{/if}
-							{/each}
-							{#each preview.concepts as concept, index (concept.id)}
-								{@const position = previewPosition(index, preview.concepts.length, concept.x, concept.y)}
-								<g transform="translate({position.x} {position.y})">
-									<circle r="5" fill="#1e3a8a" stroke="#93c5fd" stroke-width="1.2" />
-									<text y="-8" text-anchor="middle" fill="#dbeafe" font-size="6" font-weight="600">{concept.name.slice(0, 18)}</text>
-								</g>
-							{/each}
-						</svg>
-					{:else}
-						<div class="flex h-full items-center justify-center text-xs text-blue-200">Empty map</div>
-					{/if}
-					<div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 to-transparent px-4 pb-3 pt-8">
-						<span class="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-200">Map preview</span>
+					<div class="relative">
+						<div class="flex items-center justify-between">
+							<span class="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-200">Map snapshot</span>
+							<span class="text-xs text-slate-400">{map.contributorCount} contributor{map.contributorCount === 1 ? '' : 's'}</span>
+						</div>
+						<div class="mt-5 flex items-end gap-2">
+							<span class="text-4xl font-bold tracking-tight text-white">{map.conceptCount}</span>
+							<span class="pb-1 text-sm text-blue-200">concepts connected</span>
+						</div>
+						<div class="mt-4 flex h-2 gap-1 overflow-hidden rounded-full bg-slate-700/80" aria-label="Map statistics">
+							<div class="map-stat-segment concepts" style={`--size: ${Math.max(8, Math.min(100, map.conceptCount * 8))}%`}></div>
+							<div class="map-stat-segment relations" style={`--size: ${Math.max(5, Math.min(100, map.relationCount * 10))}%`}></div>
+						</div>
+						<div class="mt-2 flex justify-between text-[10px] text-slate-400">
+							<span>{map.relationCount} link{map.relationCount === 1 ? '' : 's'}</span>
+							<span>updated {relativeTime(map.updatedAt)}</span>
+						</div>
 					</div>
 				</div>
 				<div class="flex flex-1 flex-col p-5">
@@ -127,8 +107,7 @@
 					{:else}
 						<p class="mt-1 text-sm italic text-slate-400">No description yet.</p>
 					{/if}
-					<div class="mt-5 grid grid-cols-3 gap-2 text-center">
-						<div class="rounded-lg bg-slate-50 px-2 py-2"><p class="font-semibold text-slate-800">{map.conceptCount}</p><p class="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">concepts</p></div>
+					<div class="mt-5 grid grid-cols-2 gap-2 text-center">
 						<div class="rounded-lg bg-slate-50 px-2 py-2"><p class="font-semibold text-slate-800">{map.relationCount}</p><p class="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">links</p></div>
 						<div class="rounded-lg bg-slate-50 px-2 py-2"><p class="font-semibold text-slate-800">{map.contributorCount}</p><p class="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">people</p></div>
 					</div>

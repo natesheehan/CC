@@ -7,11 +7,6 @@ const creator = alias(users, 'creator');
 const editor = alias(users, 'editor');
 const relationEditor = alias(users, 'relationEditor');
 
-export type MapPreview = {
-	concepts: Array<{ mapId: string; id: string; name: string; x: number | null; y: number | null }>;
-	relations: Array<{ mapId: string; sourceId: string; targetId: string }>;
-};
-
 export async function listMapsWithStats() {
 	return await db
 		.select({
@@ -37,33 +32,6 @@ export async function listMapsWithStats() {
 		.leftJoin(users, eq(maps.createdBy, users.id))
 		.orderBy(desc(maps.updatedAt))
 		.all();
-}
-
-export async function getMapPreviews(): Promise<Map<string, MapPreview>> {
-	const [conceptRows, relationRows] = await Promise.all([
-		db
-			.select({ mapId: concepts.mapId, id: concepts.id, name: concepts.name, x: concepts.x, y: concepts.y })
-			.from(concepts)
-			.all(),
-		db
-			.select({ mapId: conceptRelations.mapId, sourceId: conceptRelations.sourceId, targetId: conceptRelations.targetId })
-			.from(conceptRelations)
-			.all()
-	]);
-
-	const previews = new Map<string, MapPreview>();
-	for (const concept of conceptRows) {
-		const preview = previews.get(concept.mapId) ?? { concepts: [], relations: [] };
-		preview.concepts.push(concept);
-		previews.set(concept.mapId, preview);
-	}
-	for (const relation of relationRows) {
-		const preview = previews.get(relation.mapId) ?? { concepts: [], relations: [] };
-		preview.relations.push(relation);
-		previews.set(relation.mapId, preview);
-	}
-
-	return previews;
 }
 
 export async function getMap(mapId: string) {

@@ -2,7 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { nanoid } from 'nanoid';
 import { db } from '$lib/server/db';
 import { maps } from '$lib/server/db/schema';
-import { getMapPreviews, listMapsWithStats, type MapPreview } from '$lib/server/queries';
+import { listMapsWithStats } from '$lib/server/queries';
 import { logActivity } from '$lib/server/activity';
 import type { Actions, PageServerLoad } from './$types';
 import { checkRateLimit } from '$lib/server/rateLimit';
@@ -13,14 +13,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const allMaps = await listMapsWithStats();
-	const previews = await getMapPreviews().catch(() => new Map<string, MapPreview>());
 	const myMaps = allMaps.filter((m) => m.createdById === locals.user!.id);
 	const otherMaps = allMaps.filter((m) => m.createdById !== locals.user!.id);
 
 	return {
 		myMaps,
-		otherMaps,
-		previews: Object.fromEntries(previews)
+		otherMaps
 	};
 };
 
