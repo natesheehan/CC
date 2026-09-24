@@ -78,6 +78,7 @@ export async function getAllConcepts() {
 			definition: concepts.definition,
 			literatureLink: concepts.literatureLink,
 			example: concepts.example,
+			quizQuestion: concepts.quizQuestion,
 			createdAt: concepts.createdAt,
 			createdByName: creator.name
 		})
