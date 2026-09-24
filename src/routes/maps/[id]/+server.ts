@@ -49,6 +49,9 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 
 	const existing = await db.select().from(maps).where(eq(maps.id, params.id)).get();
 	if (!existing) throw error(404, 'Map not found');
+	if (existing.createdBy !== locals.user.id) {
+		throw error(403, 'Only the map creator can delete this map.');
+	}
 
 	await db.delete(maps).where(eq(maps.id, params.id)).run();
 	return json({ ok: true });

@@ -448,14 +448,16 @@
 			{/if}
 		</div>
 
-		<button
-			onclick={() => (confirmDeleteMap = true)}
-			class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-red-100 hover:bg-red-50 hover:text-red-600"
-			aria-label="Delete map"
-			title="Delete map"
-		>
-			🗑
-		</button>
+		{#if data.map.createdBy === page.data.user?.id}
+			<button
+				onclick={() => (confirmDeleteMap = true)}
+				class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-400 transition hover:border-red-100 hover:bg-red-50 hover:text-red-600"
+				aria-label="Delete map"
+				title="Delete map"
+			>
+				🗑
+			</button>
+		{/if}
 		</div>
 	</div>
 
