@@ -50,15 +50,20 @@
 			<div class="docs-article-header">
 				<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">{article.eyebrow}</p>
 				<p class="mt-3 text-sm text-slate-500">Guide {articleIndex + 1} of {articles.length}</p>
-				{#if data.edited}
-					<p class="mt-4 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+				<div class="docs-provenance mt-4">
+					{#if data.edited}
+					<p class="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
 						<span>Last edited {new Date(data.edited.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })} by</span>
 						{#if data.edited.profileUrl}
 							<a href={data.edited.profileUrl} target="_blank" rel="noreferrer" class="font-medium text-slate-600 hover:text-blue-600">{data.edited.name}</a>
 						{:else}<span class="font-medium text-slate-600">{data.edited.name}</span>{/if}
 						<a href={data.edited.commitUrl} target="_blank" rel="noreferrer" class="text-blue-600 hover:text-blue-700">on GitHub</a>
 					</p>
-				{/if}
+					{:else}
+						<p class="text-xs text-slate-500">Edit history is maintained on GitHub.</p>
+					{/if}
+					<a href={data.historyUrl} target="_blank" rel="noreferrer" class="mt-1 inline-block text-xs font-medium text-blue-600 hover:text-blue-700">View documentation history on GitHub →</a>
+				</div>
 			</div>
 			<article class="docs-prose docs-article-content mt-8">
 				{@html renderMarkdown(article.markdown)}

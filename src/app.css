@@ -605,6 +605,42 @@
 	max-width: 48rem;
 }
 
+.docs-prose pre {
+	overflow-x: auto;
+	margin-top: 1.25rem;
+	border: 1px solid #1e293b;
+	border-radius: 0.75rem;
+	background: #0f172a;
+	padding: 1rem 1.1rem;
+	color: #dbeafe;
+	font-size: 0.875rem;
+	line-height: 1.7;
+}
+
+.docs-prose code {
+	border-radius: 0.25rem;
+	background: rgb(148 163 184 / 0.16);
+	padding: 0.12rem 0.3rem;
+	font-size: 0.9em;
+	color: #1d4ed8;
+}
+
+.docs-prose pre code {
+	background: transparent;
+	padding: 0;
+	color: inherit;
+}
+
+.docs-provenance {
+	border-left: 2px solid #60a5fa;
+	padding-left: 0.75rem;
+}
+
+.dark .docs-prose code {
+	background: rgb(148 163 184 / 0.2);
+	color: #93c5fd;
+}
+
 .dark .docs-guide-card {
 	border-color: rgb(71 85 105 / 0.75);
 	background: rgb(23 32 51 / 0.82);

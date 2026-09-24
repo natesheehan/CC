@@ -17,20 +17,30 @@ type GitHubCommit = {
 
 export const load: PageServerLoad = async ({ fetch, params }) => {
 	const path = articlePaths[params.slug];
-	if (!path) return { edited: null };
+	const historyUrl = path
+		? `https://github.com/natesheehan/CC/commits/main/${path}`
+		: 'https://github.com/natesheehan/CC/commits/main';
+	if (!path) return { edited: null, historyUrl };
 
 	try {
 		const response = await fetch(
 			`https://api.github.com/repos/natesheehan/CC/commits?path=${encodeURIComponent(path)}&per_page=1`,
-			{ headers: { Accept: 'application/vnd.github+json' } }
+			{
+				headers: {
+					Accept: 'application/vnd.github+json',
+					'User-Agent': 'concept-cartography-docs',
+					...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {})
+				}
+			}
 		);
-		if (!response.ok) return { edited: null };
+		if (!response.ok) return { edited: null, historyUrl };
 
 		const commits = (await response.json()) as GitHubCommit[];
 		const latest = commits[0];
-		if (!latest?.commit?.author?.date) return { edited: null };
+		if (!latest?.commit?.author?.date) return { edited: null, historyUrl };
 
 		return {
+			historyUrl,
 			edited: {
 				date: latest.commit.author.date,
 				name: latest.author?.login ?? latest.commit.author.name ?? 'a GitHub contributor',
@@ -39,6 +49,6 @@ export const load: PageServerLoad = async ({ fetch, params }) => {
 			}
 		};
 	} catch {
-		return { edited: null };
+		return { edited: null, historyUrl };
 	}
 };
