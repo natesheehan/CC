@@ -1,9 +1,25 @@
 <script lang="ts">
 	import '../app.css';
 	import { page } from '$app/state';
+	import { onMount } from 'svelte';
 	import UserStatsPopover from '$lib/components/UserStatsPopover.svelte';
 
 	let { data, children } = $props();
+	let isDark = $state(false);
+
+	function applyTheme(dark: boolean) {
+		isDark = dark;
+		document.documentElement.classList.toggle('dark', dark);
+		localStorage.setItem('concept-cartography-theme', dark ? 'dark' : 'light');
+	}
+
+	function toggleTheme() {
+		applyTheme(!isDark);
+	}
+
+	onMount(() => {
+		isDark = document.documentElement.classList.contains('dark');
+	});
 
 	const tabs = [
 		{ href: '/', label: 'Home' },
@@ -45,8 +61,29 @@
 				{/each}
 			</nav>
 
-			{#if data.user}
-				<div class="flex items-center gap-3">
+			<div class="flex items-center gap-2 sm:gap-3">
+				<button
+					type="button"
+					class="theme-toggle group"
+					role="switch"
+					aria-checked={isDark}
+					aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+					title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+					onclick={toggleTheme}
+				>
+					<span class="theme-toggle-track">
+						<svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true">
+							<circle cx="12" cy="12" r="3.5" />
+							<path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+						</svg>
+						<svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true">
+							<path d="M20.5 15.3A8.5 8.5 0 0 1 8.7 3.5 8.5 8.5 0 1 0 20.5 15.3Z" />
+						</svg>
+						<span class="theme-toggle-thumb"></span>
+					</span>
+				</button>
+
+				{#if data.user}
 					<UserStatsPopover userId={data.user.id} name={data.user.name} color={data.user.color} />
 					<form method="POST" action="/logout">
 						<button
@@ -56,15 +93,15 @@
 							Switch user
 						</button>
 					</form>
-				</div>
-			{:else if page.url.pathname !== '/login'}
-				<a
-					href="/login"
-					class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-				>
-					Sign in
-				</a>
-			{/if}
+				{:else if page.url.pathname !== '/login'}
+					<a
+						href="/login"
+						class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+					>
+						Sign in
+					</a>
+				{/if}
+			</div>
 		</div>
 
 		<nav class="flex items-center gap-1 overflow-x-auto px-4 pb-2 sm:hidden" aria-label="Primary">
