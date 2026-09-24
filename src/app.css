@@ -16,4 +16,36 @@
 	.scrollbar-thin {
 		scrollbar-width: thin;
 	}
+
+	.docs-prose {
+		@apply max-w-3xl text-base leading-8 text-slate-600;
+	}
+
+	.docs-prose h1 {
+		@apply text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl;
+	}
+
+	.docs-prose h2 {
+		@apply mt-10 text-xl font-semibold text-slate-900;
+	}
+
+	.docs-prose p {
+		@apply mt-5;
+	}
+
+	.docs-prose ul {
+		@apply mt-5 list-disc space-y-3 pl-6;
+	}
+
+	.docs-prose li::marker {
+		@apply text-blue-500;
+	}
+
+	.docs-prose strong {
+		@apply font-semibold text-slate-800;
+	}
+
+	.docs-prose em {
+		@apply text-slate-700;
+	}
 }
