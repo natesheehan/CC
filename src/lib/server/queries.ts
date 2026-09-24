@@ -34,6 +34,33 @@ export async function listMapsWithStats() {
 		.all();
 }
 
+export async function getMapPreviews() {
+	const [conceptRows, relationRows] = await Promise.all([
+		db
+			.select({ mapId: concepts.mapId, id: concepts.id, name: concepts.name, x: concepts.x, y: concepts.y })
+			.from(concepts)
+			.all(),
+		db
+			.select({ mapId: conceptRelations.mapId, sourceId: conceptRelations.sourceId, targetId: conceptRelations.targetId })
+			.from(conceptRelations)
+			.all()
+	]);
+
+	const previews = new Map<string, { concepts: typeof conceptRows; relations: typeof relationRows }>();
+	for (const concept of conceptRows) {
+		const preview = previews.get(concept.mapId) ?? { concepts: [], relations: [] };
+		preview.concepts.push(concept);
+		previews.set(concept.mapId, preview);
+	}
+	for (const relation of relationRows) {
+		const preview = previews.get(relation.mapId) ?? { concepts: [], relations: [] };
+		preview.relations.push(relation);
+		previews.set(relation.mapId, preview);
+	}
+
+	return previews;
+}
+
 export async function getMap(mapId: string) {
 	return await db.select().from(maps).where(eq(maps.id, mapId)).get();
 }
