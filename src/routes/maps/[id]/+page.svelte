@@ -567,18 +567,18 @@
 			{/if}
 
 			{#if showLegend && data.concepts.length > 0}
-				<div class="absolute top-4 left-4 max-w-[220px] rounded-lg border border-slate-200 bg-white/95 p-3 text-xs shadow-sm backdrop-blur">
+				<div class="map-legend absolute top-4 left-4 max-w-[250px] rounded-lg border border-slate-200 bg-white/95 p-3 text-sm shadow-sm backdrop-blur">
 					<div class="mb-1.5 flex items-center justify-between">
 						<span class="font-semibold text-slate-600">Relation types</span>
 						<button onclick={() => (showLegend = false)} class="text-slate-300 hover:text-slate-500" aria-label="Hide legend">✕</button>
 					</div>
-					<ul class="space-y-1">
+					<ul class="space-y-1.5">
 						{#each builtInLegend as { key, meta, count } (key)}
 							<li>
 								<button
 									onclick={() => toggleRelationType(key)}
 									aria-pressed={visibleRelationTypes.has(key)}
-									class="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left transition hover:bg-slate-50 {visibleRelationTypes.has(key)
+									class="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left transition hover:bg-slate-50 {visibleRelationTypes.has(key)
 										? 'text-slate-600'
 										: 'text-slate-300 line-through'}"
 								>
@@ -593,13 +593,13 @@
 
 					{#if communityLegend.length > 0}
 						<div class="mb-1.5 mt-3 border-t border-slate-100 pt-2 font-semibold text-slate-600">Community labels</div>
-						<ul class="space-y-1">
+						<ul class="space-y-1.5">
 							{#each communityLegend as { key, meta, count } (key)}
 								<li>
 									<button
 										onclick={() => toggleRelationType(key)}
 										aria-pressed={visibleRelationTypes.has(key)}
-										class="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left transition hover:bg-slate-50 {visibleRelationTypes.has(key)
+										class="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left transition hover:bg-slate-50 {visibleRelationTypes.has(key)
 											? 'text-slate-600'
 											: 'text-slate-300 line-through'}"
 									>
@@ -616,7 +616,7 @@
 			{:else if !showLegend && data.concepts.length > 0}
 				<button
 					onclick={() => (showLegend = true)}
-					class="absolute top-4 left-4 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm hover:text-slate-700"
+					class="map-legend absolute top-4 left-4 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 shadow-sm hover:text-slate-700"
 				>
 					Show legend
 				</button>

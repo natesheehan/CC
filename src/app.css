@@ -79,6 +79,12 @@
 	.dark .hover\:bg-slate-100:hover { background-color: #273449; }
 	.dark .bg-white\/95 { background-color: rgb(23 32 51 / 0.95); }
 	.dark .theme-toggle { color: #cbd5e1; }
+	.dark .concept-node { fill: #1e293b; stroke: #64748b; }
+	.dark .concept-node.selected { stroke: #60a5fa; }
+	.dark .map-legend .text-slate-600 { color: #e2e8f0; }
+	.dark .map-legend .text-slate-500 { color: #cbd5e1; }
+	.dark .map-legend .text-slate-300 { color: #94a3b8; }
+	.dark .map-legend .border-slate-100 { border-color: #334155; }
 }
 
 .theme-toggle {

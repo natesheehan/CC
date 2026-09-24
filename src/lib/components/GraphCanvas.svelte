@@ -617,7 +617,7 @@
 							fill="white"
 							stroke={selectedId === node.id ? '#2563eb' : '#cbd5e1'}
 							stroke-width={selectedId === node.id ? 3 : 1.5}
-							class="drop-shadow-sm transition-[r,stroke]"
+							class="concept-node {selectedId === node.id ? 'selected' : ''} drop-shadow-sm transition-[r,stroke]"
 						/>
 						<foreignObject x="-34" y="-34" width="68" height="68" class="pointer-events-none">
 							<div
