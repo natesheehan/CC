@@ -128,6 +128,7 @@
 			<p>Concept Cartography</p>
 			<nav class="flex items-center gap-4" aria-label="Footer">
 				<a class="transition hover:text-blue-600" href="/docs">Docs</a>
+				<a class="transition hover:text-blue-600" href="/community">Community</a>
 				<a class="transition hover:text-blue-600" href="/maps">Maps</a>
 				<a class="transition hover:text-blue-600" href="/concepts">Concepts</a>
 				{#if data.user}

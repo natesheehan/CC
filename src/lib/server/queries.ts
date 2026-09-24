@@ -202,3 +202,76 @@ export async function getUserStats(userId: string) {
 		topRelationType: topRelationType?.type ?? null
 	};
 }
+
+export async function getCommunityStats() {
+	const [
+		userCount,
+		mapCount,
+		conceptCount,
+		relationCount,
+		commentCount,
+		actionCount,
+		topContributors,
+		relationMix,
+		recentActivity,
+		mapHighlights
+	] = await Promise.all([
+		db.select({ count: sql<number>`count(*)` }).from(users).get(),
+		db.select({ count: sql<number>`count(*)` }).from(maps).get(),
+		db.select({ count: sql<number>`count(*)` }).from(concepts).get(),
+		db.select({ count: sql<number>`count(*)` }).from(conceptRelations).get(),
+		db.select({ count: sql<number>`count(*)` }).from(relationComments).get(),
+		db.select({ count: sql<number>`count(*)` }).from(activityLog).get(),
+		db
+			.select({
+				userId: activityLog.userId,
+				name: users.name,
+				color: users.color,
+				actions: sql<number>`count(*)`,
+				maps: sql<number>`count(distinct ${activityLog.mapId})`
+			})
+			.from(activityLog)
+			.leftJoin(users, eq(activityLog.userId, users.id))
+			.groupBy(activityLog.userId, users.name, users.color)
+			.orderBy(sql`count(*) desc`)
+			.limit(6)
+			.all(),
+		db
+			.select({ type: conceptRelations.type, count: sql<number>`count(*)` })
+			.from(conceptRelations)
+			.groupBy(conceptRelations.type)
+			.orderBy(sql`count(*) desc`)
+			.limit(8)
+			.all(),
+		db
+			.select({
+				id: activityLog.id,
+				action: activityLog.action,
+				summary: activityLog.summary,
+				createdAt: activityLog.createdAt,
+				userName: users.name,
+				userColor: users.color
+			})
+			.from(activityLog)
+			.leftJoin(users, eq(activityLog.userId, users.id))
+			.orderBy(desc(activityLog.createdAt))
+			.limit(8)
+			.all(),
+		listMapsWithStats().then((allMaps) => allMaps.slice(0, 5))
+	]);
+
+	return {
+		totals: {
+			users: userCount?.count ?? 0,
+			maps: mapCount?.count ?? 0,
+			concepts: conceptCount?.count ?? 0,
+			relations: relationCount?.count ?? 0,
+			comments: commentCount?.count ?? 0,
+			actions: actionCount?.count ?? 0
+		},
+		topContributors,
+		relationMix,
+		recentActivity,
+		mapHighlights
+	};
+}
