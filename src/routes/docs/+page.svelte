@@ -1,52 +1,52 @@
 <script lang="ts">
-	import { marked } from 'marked';
-	import pedagogyMarkdown from '$lib/content/docs/pedagogy.md?raw';
-	import howItWorksMarkdown from '$lib/content/docs/how-it-works.md?raw';
-
-	const articles = [
-		{ slug: 'pedagogy', markdown: pedagogyMarkdown },
-		{ slug: 'how-it-works', markdown: howItWorksMarkdown }
+	const guides = [
+		{ slug: 'get-started', number: '01', title: 'Get started', eyebrow: 'Using the atlas', description: 'Create your first map, add concepts, and connect ideas with meaningful relations.', accent: 'blue' },
+		{ slug: 'philosophy', number: '02', title: 'Philosophy of concept cartography', eyebrow: 'Why maps work', description: 'Explore the pedagogy behind making relationships visible and learning relationally.', accent: 'violet' },
+		{ slug: 'governance', number: '03', title: 'Governance', eyebrow: 'Shared practice', description: 'Principles for stewardship, attribution, discussion, and care in a shared knowledge space.', accent: 'cyan' },
+		{ slug: 'contributing', number: '04', title: 'How to contribute', eyebrow: 'Join the work', description: 'Practical guidance for adding precise concepts, thoughtful relations, and useful context.', accent: 'amber' }
 	];
-
-	function renderMarkdown(markdown: string): string {
-		return marked.parse(markdown, { async: false });
-	}
 </script>
 
 <svelte:head>
 	<title>Docs · Concept Cartography</title>
-	<meta
-		name="description"
-		content="Learn the ideas behind concept maps and how to use Concept Cartography."
-	/>
+	<meta name="description" content="Guides to using, understanding, and contributing to Concept Cartography." />
 </svelte:head>
 
-<div class="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:py-16">
-	<header class="max-w-2xl">
-		<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Documentation</p>
-		<h1 class="mt-3 text-4xl font-bold tracking-tight text-slate-900">Think in connections.</h1>
-		<p class="mt-4 text-lg leading-relaxed text-slate-600">
-			A short guide to the thinking behind concept maps and the tools in Concept Cartography.
-		</p>
-	</header>
+<div class="docs-hub-page mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6 lg:py-14">
+	<section class="docs-hub-hero relative overflow-hidden rounded-3xl px-6 py-12 sm:px-10 sm:py-16">
+		<div class="docs-hub-grid absolute inset-0" aria-hidden="true"></div>
+		<div class="docs-hub-orbit absolute" aria-hidden="true"></div>
+		<div class="relative max-w-2xl">
+			<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">The field guide</p>
+			<h1 class="mt-4 text-4xl font-bold tracking-tight text-white sm:text-6xl">Make the invisible visible.</h1>
+			<p class="mt-5 max-w-xl text-lg leading-relaxed text-slate-300">
+				Learn how to use Concept Cartography, why relational thinking matters, and how to help a shared atlas grow.
+			</p>
+		</div>
+	</section>
 
-	<div class="mt-12 grid gap-12 lg:grid-cols-[minmax(0,1fr)_280px]">
-		<div class="space-y-16">
-			{#each articles as article (article.slug)}
-				<article class="docs-prose" aria-labelledby={article.slug}>
-					{@html renderMarkdown(article.markdown)}
-				</article>
-			{/each}
+	<section class="mt-12" aria-labelledby="guides-heading">
+		<div class="flex items-end justify-between gap-4">
+			<div>
+				<p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Four ways in</p>
+				<h2 id="guides-heading" class="mt-2 text-2xl font-semibold text-slate-900">Explore the docs</h2>
+			</div>
+			<span class="text-sm text-slate-400">{guides.length} guides</span>
 		</div>
 
-		<aside class="lg:sticky lg:top-6 lg:self-start">
-			<nav class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Documentation">
-				<h2 class="text-xs font-semibold uppercase tracking-wide text-slate-400">On this page</h2>
-				<ul class="mt-4 space-y-3 text-sm">
-					<li><a class="text-slate-600 hover:text-blue-600" href="#the-pedagogy-behind-concept-cartography">The pedagogy behind concept cartography</a></li>
-					<li><a class="text-slate-600 hover:text-blue-600" href="#how-it-works">How it works</a></li>
-				</ul>
-			</nav>
-		</aside>
-	</div>
+		<div class="mt-6 grid gap-4 sm:grid-cols-2">
+			{#each guides as guide, index (guide.slug)}
+				<a href="/docs/{guide.slug}" class="docs-guide-card docs-guide-{guide.accent}" style={`--delay: ${index * 80}ms`}>
+					<div class="flex items-start justify-between gap-4">
+						<span class="docs-guide-number">{guide.number}</span>
+						<span class="text-lg text-slate-400 transition group-hover:text-blue-500" aria-hidden="true">↗</span>
+					</div>
+					<p class="mt-10 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{guide.eyebrow}</p>
+					<h3 class="mt-2 text-xl font-semibold text-slate-900">{guide.title}</h3>
+					<p class="mt-3 max-w-sm text-sm leading-relaxed text-slate-600">{guide.description}</p>
+					<span class="mt-6 inline-block text-sm font-semibold text-blue-600">Read guide <span aria-hidden="true">→</span></span>
+				</a>
+			{/each}
+		</div>
+	</section>
 </div>

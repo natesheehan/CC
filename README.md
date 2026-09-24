@@ -106,6 +106,20 @@ npm test        # vitest — includes a regression test for the graph's
                  # force-simulation reactivity (see Design notes below)
 ```
 
+## Contributing to the software
+
+Concept Cartography welcomes focused contributions to the code, documentation, tests,
+accessibility, and design. Start locally with `npm install` and `npm run dev`; without
+database environment variables, development uses `./data/conceptmap.db`. Create a branch,
+keep changes focused, and follow the existing boundaries: server database access belongs in
+`src/lib/server`, shared types and relation metadata belong in `src/lib/shared`, and
+route-specific UI belongs beside its route.
+
+Before opening a pull request, run `npm run check` and `npm test`. Describe what changed,
+why it changed, and how it was verified. Include screenshots for meaningful UI changes and
+call out any migration or deployment requirements. For larger changes, open an issue first
+so the direction can be discussed. Documentation and examples are contributions too.
+
 ## Project structure
 
 ```
