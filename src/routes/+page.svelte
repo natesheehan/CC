@@ -9,7 +9,7 @@
 
 <div class="flex flex-1 flex-col">
 	<!-- Hero -->
-	<section class="relative overflow-hidden bg-slate-900">
+	<section class="relative flex min-h-[calc(100svh-7rem)] overflow-hidden bg-slate-900 sm:min-h-[calc(100svh-4rem)]">
 		<div
 			class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_40%,rgba(59,130,246,0.16),transparent)]"
 		></div>
@@ -19,7 +19,7 @@
 		<div
 			class="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-slate-900"
 		></div>
-		<div class="relative z-10 mx-auto max-w-3xl px-4 py-28 text-center sm:px-6 sm:py-36">
+		<div class="relative z-10 mx-auto flex min-h-[calc(100svh-7rem)] max-w-3xl flex-col items-center justify-center px-4 py-16 text-center sm:min-h-[calc(100svh-4rem)] sm:px-6 sm:py-20">
 			<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-400">Concept Cartography</p>
 			<h1 class="mt-3 text-4xl font-bold tracking-tight text-white sm:text-6xl">
 				Connecting Concepts Cartographically.

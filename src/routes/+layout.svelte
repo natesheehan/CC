@@ -85,4 +85,22 @@
 	<main class="flex flex-1 flex-col">
 		{@render children()}
 	</main>
+
+	<footer class="border-t border-slate-200 bg-white">
+		<div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+			<p>Concept Cartography</p>
+			<nav class="flex items-center gap-4" aria-label="Footer">
+				<a class="transition hover:text-blue-600" href="/docs">Docs</a>
+				<a class="transition hover:text-blue-600" href="/maps">Maps</a>
+				<a class="transition hover:text-blue-600" href="/concepts">Concepts</a>
+				{#if data.user}
+					<form method="POST" action="/logout">
+						<button type="submit" class="transition hover:text-blue-600">Switch user</button>
+					</form>
+				{:else}
+					<a class="transition hover:text-blue-600" href="/login">Sign in</a>
+				{/if}
+			</nav>
+		</div>
+	</footer>
 </div>
