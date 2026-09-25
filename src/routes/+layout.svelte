@@ -87,9 +87,6 @@
 
 				{#if data.user}
 					<UserStatsPopover userId={data.user.id} name={data.user.name} color={data.user.color} />
-					<form method="POST" action="/logout" class="hidden md:block">
-						<button type="submit" class="site-tab">Switch user</button>
-					</form>
 				{:else if page.url.pathname !== '/login'}
 					<a href="/login" class="cc-btn cc-btn-primary cc-btn-sm">Sign in</a>
 				{/if}
@@ -121,11 +118,7 @@
 				{#each footerLinks as link (link.href)}
 					<a class="site-tab" href={link.href}>{link.label}</a>
 				{/each}
-				{#if data.user}
-					<form method="POST" action="/logout">
-						<button type="submit" class="site-tab">Switch user</button>
-					</form>
-				{:else}
+				{#if !data.user}
 					<a class="site-tab" href="/login">Sign in</a>
 				{/if}
 			</nav>
