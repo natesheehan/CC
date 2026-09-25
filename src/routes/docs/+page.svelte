@@ -4,7 +4,7 @@
 		{ slug: 'philosophy', number: '02', title: 'Philosophy of concept cartography', eyebrow: 'Why maps work', description: 'Explore the pedagogy behind making relationships visible and learning relationally.', accent: 'violet' },
 		{ slug: 'governance', number: '03', title: 'Governance', eyebrow: 'Shared practice', description: 'Principles for stewardship, attribution, discussion, and care in a shared knowledge space.', accent: 'cyan' },
 		{ slug: 'contributing', number: '04', title: 'How to contribute', eyebrow: 'Join the work', description: 'Practical guidance for adding precise concepts, thoughtful relations, and useful context.', accent: 'amber' },
-		{ slug: 'cite', number: '05', title: 'Citing the atlas', eyebrow: 'Give credit', description: 'Learn how to properly cite the Concept Cartography atlas in your work.', accent: 'amber' }
+		{ slug: 'cite', number: '05', title: 'Citing the atlas', eyebrow: 'Give credit', description: 'Learn how to properly cite the Concept Cartography atlas in your work.', accent: 'blue' }
 	];
 </script>
 
