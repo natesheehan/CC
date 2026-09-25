@@ -5,6 +5,7 @@
 	import pedagogyMarkdown from '$lib/content/docs/pedagogy.md?raw';
 	import governanceMarkdown from '$lib/content/docs/governance.md?raw';
 	import contributingMarkdown from '$lib/content/docs/contributing.md?raw';
+	import citeMarkdown from '$lib/content/docs/cite.md?raw';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -13,7 +14,8 @@
 		{ slug: 'get-started', title: 'Get started', eyebrow: 'Using the atlas', description: 'Build your first map and learn the core workflow.', markdown: howItWorksMarkdown },
 		{ slug: 'philosophy', title: 'Philosophy of concept cartography', eyebrow: 'Why maps work', description: 'The thinking behind making relationships visible.', markdown: pedagogyMarkdown },
 		{ slug: 'governance', title: 'Governance', eyebrow: 'Shared practice', description: 'Principles for caring for a collaborative knowledge space.', markdown: governanceMarkdown },
-		{ slug: 'contributing', title: 'How to contribute', eyebrow: 'Join the work', description: 'Practical ways to add clarity and context to a map.', markdown: contributingMarkdown }
+		{ slug: 'contributing', title: 'How to contribute', eyebrow: 'Join the work', description: 'Practical ways to add clarity and context to a map.', markdown: contributingMarkdown },
+		{ slug: 'cite', title: 'Citing the atlas', eyebrow: 'Give credit', description: 'How to properly cite maps created with the atlas.', markdown: citeMarkdown }
 	];
 
 	const article = $derived(articles.find((item) => item.slug === page.params.slug));
