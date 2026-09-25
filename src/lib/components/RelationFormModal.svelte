@@ -94,7 +94,8 @@
 </script>
 
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-	<div class="w-full max-w-lg rounded-xl bg-white shadow-xl">
+	<div class="cc-panel w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-xl">
+		<div class="cc-stripe shrink-0"></div>
 		<div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
 			<h2 class="text-lg font-semibold text-slate-800">{mode === 'edit' ? 'Edit link' : 'Link two concepts'}</h2>
 			{#if onManageTypes}

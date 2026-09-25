@@ -95,7 +95,7 @@
 
 	{#if open}
 		<div
-			class="absolute right-0 top-full z-30 mt-2 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+			class="cc-panel absolute right-0 top-full z-30 mt-2 w-72 overflow-hidden rounded-xl bg-white"
 		>
 			<div class="flex items-center gap-2.5 border-b border-slate-100 bg-slate-50 px-4 py-3">
 				<span

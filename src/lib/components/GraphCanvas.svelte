@@ -12,6 +12,7 @@
 		type SimulationLinkDatum
 	} from 'd3-force';
 	import { RELATION_META, type RelationType } from '$lib/shared/relations';
+	import Icon from './Icon.svelte';
 	import type { ClientConcept, ClientRelation } from '$lib/shared/types';
 
 	interface SimNode extends SimulationNodeDatum {
@@ -34,7 +35,12 @@
 		centralId = null,
 		onSelect,
 		onSelectRelation,
-		onNodeMoved
+		onNodeMoved,
+		onContextMenu,
+		onOpen,
+		onBackgroundClick,
+		fullscreen = false,
+		onToggleFullscreen
 	}: {
 		concepts: ClientConcept[];
 		relations: ClientRelation[];
@@ -45,7 +51,43 @@
 		onSelect: (id: string) => void;
 		onSelectRelation?: (id: string) => void;
 		onNodeMoved: (id: string, x: number, y: number) => void;
+		/** Right-click on a node, an edge, or empty canvas. */
+		onContextMenu?: (target: { kind: 'node' | 'edge' | 'background'; id?: string }, clientX: number, clientY: number) => void;
+		/** Double-click (or Enter) on a node: open its details. */
+		onOpen?: (id: string) => void;
+		/** Click on empty canvas (not a pan). */
+		onBackgroundClick?: () => void;
+		fullscreen?: boolean;
+		onToggleFullscreen?: () => void;
 	} = $props();
+
+	// A brief pulsing ring used to point out a node (e.g. a search result).
+	let flashingId: string | null = $state(null);
+	let flashTimer: ReturnType<typeof setTimeout> | undefined;
+	export function flashNode(id: string) {
+		clearTimeout(flashTimer);
+		flashingId = null;
+		requestAnimationFrame(() => {
+			flashingId = id;
+			flashTimer = setTimeout(() => (flashingId = null), 2200);
+		});
+	}
+
+	// Hover state drives focus+context highlighting: hovering a node lifts
+	// its own links and fades the rest; hovering a link shows its label.
+	let hoveredNodeId: string | null = $state(null);
+	let hoveredLinkId: string | null = $state(null);
+
+	function linkTouches(link: SimLink, nodeId: string) {
+		return resolveEnd(link.source)?.id === nodeId || resolveEnd(link.target)?.id === nodeId;
+	}
+
+	function openContextMenu(e: MouseEvent, kind: 'node' | 'edge' | 'background', id?: string) {
+		if (!onContextMenu) return;
+		e.preventDefault();
+		e.stopPropagation();
+		onContextMenu({ kind, id }, e.clientX, e.clientY);
+	}
 
 	function metaFor(type: string) {
 		return relationMeta[type] ?? { label: type, phrase: type, color: '#64748b', directional: true };
@@ -336,6 +378,7 @@
 
 	function onNodePointerDown(e: PointerEvent, node: SimNode) {
 		e.stopPropagation();
+		if (e.button !== 0) return;
 		draggingId = node.id;
 		(e.target as Element).setPointerCapture(e.pointerId);
 		node.fx = node.x;
@@ -364,21 +407,27 @@
 	let panning = false;
 	let panStart = { x: 0, y: 0, panX: 0, panY: 0 };
 
+	let panMoved = false;
+
 	function onBackgroundPointerDown(e: PointerEvent) {
+		if (e.button === 2) return;
 		panning = true;
+		panMoved = false;
 		panStart = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
 		(e.currentTarget as Element).setPointerCapture(e.pointerId);
 	}
 
 	function onBackgroundPointerMove(e: PointerEvent) {
 		if (!panning) return;
+		if (Math.hypot(e.clientX - panStart.x, e.clientY - panStart.y) > 4) panMoved = true;
 		pan = {
 			x: panStart.panX + (e.clientX - panStart.x),
 			y: panStart.panY + (e.clientY - panStart.y)
 		};
 	}
 
-	function onBackgroundPointerUp() {
+	function onBackgroundPointerUp(e: PointerEvent) {
+		if (panning && !panMoved && e.type === 'pointerup') onBackgroundClick?.();
 		panning = false;
 	}
 
@@ -395,6 +444,55 @@
 		const { x: rx, y: ry } = rotateAndScale(gx, gy, next);
 		pan = { x: sx - rx, y: sy - ry };
 		zoom = next;
+	}
+
+	function zoomAroundCenter(next: number) {
+		const clamped = Math.min(3, Math.max(0.25, next));
+		const { x: gx, y: gy } = localToGraph(width / 2, height / 2);
+		const { x: rx, y: ry } = rotateAndScale(gx, gy, clamped);
+		pan = { x: width / 2 - rx, y: height / 2 - ry };
+		zoom = clamped;
+	}
+
+	export function zoomIn() {
+		zoomAroundCenter(zoom * 1.2);
+	}
+
+	export function zoomOut() {
+		zoomAroundCenter(zoom / 1.2);
+	}
+
+	/** Zoom and pan so every node is in view. */
+	export function fitView() {
+		const placed = simNodes.filter((n) => n.x != null && n.y != null);
+		if (placed.length === 0) return;
+		const pad = 70;
+		const xs = placed.map((n) => n.x!);
+		const ys = placed.map((n) => n.y!);
+		const minX = Math.min(...xs) - pad;
+		const maxX = Math.max(...xs) + pad;
+		const minY = Math.min(...ys) - pad;
+		const maxY = Math.max(...ys) + pad;
+		const sideways = rotation % 180 !== 0;
+		const w = sideways ? maxY - minY : maxX - minX;
+		const h = sideways ? maxX - minX : maxY - minY;
+		const next = Math.min(1.6, Math.max(0.25, Math.min(width / w, height / h)));
+		const { x: rx, y: ry } = rotateAndScale((minX + maxX) / 2, (minY + maxY) / 2, next);
+		pan = { x: width / 2 - rx, y: height / 2 - ry };
+		zoom = next;
+	}
+
+	/** Pan (without changing zoom) so the given node sits in the middle. */
+	export function focusNode(id: string) {
+		const node = nodesById.get(id);
+		if (!node || node.x == null || node.y == null) return;
+		const { x: rx, y: ry } = rotateAndScale(node.x, node.y, zoom);
+		pan = { x: width / 2 - rx, y: height / 2 - ry };
+	}
+
+	/** Graph-space coordinates under a screen point (e.g. where a menu was opened). */
+	export function graphPointAt(clientX: number, clientY: number) {
+		return screenToGraph(clientX, clientY);
 	}
 
 	export function resetView() {
@@ -512,9 +610,11 @@
 				const endpoints = linkEndpoints(link);
 				if (!endpoints) return '';
 				const meta = metaFor(link.type);
-				const markerEnd = ` marker-end="url(#export-arrow-${link.type})"`;
+				const markerEnd =
+					meta.directional || link.direction === 'both' ? ` marker-end="url(#export-arrow-${link.type})"` : '';
 				const markerStart = link.direction === 'both' ? ` marker-start="url(#export-arrow-${link.type})"` : '';
-				return `<path d="${endpoints.path}" fill="none" stroke="${meta.color}" stroke-width="2" stroke-opacity="0.8"${markerEnd}${markerStart} />`;
+				const dash = meta.directional ? '' : ' stroke-dasharray="7 5"';
+				return `<path d="${endpoints.path}" fill="none" stroke="white" stroke-width="6" /><path d="${endpoints.path}" fill="none" stroke="${meta.color}" stroke-width="2.5"${dash}${markerEnd}${markerStart} />`;
 			})
 			.join('');
 
@@ -526,7 +626,7 @@
 				const tspans = lines
 					.map((line, i) => `<tspan x="0" dy="${i === 0 ? startDy : lineHeight}">${escapeXml(line)}</tspan>`)
 					.join('');
-				return `<g transform="translate(${n.x} ${n.y})"><circle r="36" fill="white" stroke="#cbd5e1" stroke-width="1.5" /><text text-anchor="middle" font-size="11" font-family="Inter, system-ui, sans-serif" fill="#334155">${tspans}</text></g>`;
+				return `<g transform="translate(${n.x} ${n.y})"><circle r="36" fill="white" stroke="#14110f" stroke-width="2" /><text text-anchor="middle" font-size="11" font-weight="700" font-family="Inter, system-ui, sans-serif" fill="#14110f">${tspans}</text></g>`;
 			})
 			.join('');
 
@@ -584,12 +684,13 @@
 	bind:this={container}
 	bind:clientWidth={width}
 	bind:clientHeight={height}
-	class="relative h-full w-full touch-none overflow-hidden bg-[radial-gradient(circle,theme(colors.slate.200)_1px,transparent_1px)] bg-[length:22px_22px]"
+	class="graph-canvas relative h-full w-full touch-none overflow-hidden"
 	onpointerdown={onBackgroundPointerDown}
 	onpointermove={onBackgroundPointerMove}
 	onpointerup={onBackgroundPointerUp}
 	onpointercancel={onBackgroundPointerUp}
 	onwheel={onWheel}
+	oncontextmenu={(e) => openContextMenu(e, 'background')}
 	role="application"
 	aria-label="Concept map graph"
 >
@@ -602,11 +703,11 @@
 					viewBox="0 0 10 10"
 					refX="9"
 					refY="5"
-					markerWidth="7"
-					markerHeight="7"
+					markerWidth="6"
+					markerHeight="6"
 					orient="auto-start-reverse"
 				>
-					<path d="M 0 0 L 10 5 L 0 10 z" fill={meta.color} />
+					<path d="M 0 0 L 10 5 L 0 10 z" class="edge-marker" style="--edge: {meta.color}" />
 				</marker>
 			{/each}
 		</defs>
@@ -616,11 +717,19 @@
 				{@const endpoints = linkEndpoints(link)}
 				{#if endpoints}
 					{@const meta = metaFor(link.type)}
+					{@const active = selectedRelationId === link.id || hoveredLinkId === link.id || (hoveredNodeId != null && linkTouches(link, hoveredNodeId))}
+					{@const faded = centralId != null && !isCentralConnection(link)}
+					{@const hoverFaded = hoveredNodeId != null && !linkTouches(link, hoveredNodeId)}
 					<g
 						role="button"
 						tabindex="0"
-						class="cursor-pointer {centralId && !isCentralConnection(link) ? 'map-dimmed' : ''}"
+						aria-label="{endpoints.source.name} {meta.phrase} {endpoints.target.name}"
+						class="edge cursor-pointer {faded ? 'map-dimmed' : hoverFaded ? 'hover-dimmed' : ''} {active ? 'edge-active' : ''}"
+						style="--edge: {meta.color}"
 						onpointerdown={(e) => e.stopPropagation()}
+						onpointerenter={() => (hoveredLinkId = link.id)}
+						onpointerleave={() => (hoveredLinkId = null)}
+						oncontextmenu={(e) => openContextMenu(e, 'edge', link.id)}
 						onclick={(e) => {
 							e.stopPropagation();
 							onSelectRelation?.(link.id);
@@ -630,14 +739,15 @@
 						}}
 					>
 						<!-- Wide, invisible hit-area so thin lines are still easy to click. -->
-						<path d={endpoints.path} fill="none" stroke="transparent" stroke-width="14" />
+						<path d={endpoints.path} fill="none" stroke="transparent" stroke-width="16" />
+						<!-- Halo in the canvas colour keeps every relation colour legible where it crosses other links. -->
+						<path d={endpoints.path} class="edge-halo" fill="none" />
 						<path
 							d={endpoints.path}
+							class="edge-line"
 							fill="none"
-							stroke={meta.color}
-							stroke-width={selectedRelationId === link.id ? 3.5 : 2}
-							stroke-opacity={selectedRelationId === link.id ? 1 : 0.75}
-							marker-end="url(#arrow-{link.type})"
+							stroke-dasharray={meta.directional ? undefined : '7 5'}
+							marker-end={meta.directional || link.direction === 'both' ? `url(#arrow-${link.type})` : undefined}
 							marker-start={link.direction === 'both' ? `url(#arrow-${link.type})` : undefined}
 						>
 							<title
@@ -653,35 +763,67 @@
 
 			{#each simNodes as node (node.id)}
 				{#if node.x != null && node.y != null}
+					{@const isCentral = centralId === node.id}
+					{@const isSelected = selectedId === node.id}
+					{@const faded =
+						centralId != null && !isCentral && !simLinks.some((link) => linkTouches(link, centralId!) && linkTouches(link, node.id))}
+					{@const hoverFaded =
+						hoveredNodeId != null && hoveredNodeId !== node.id && !simLinks.some((link) => linkTouches(link, hoveredNodeId!) && linkTouches(link, node.id))}
 					<g
 						transform="translate({node.x} {node.y})"
-						class="cursor-grab active:cursor-grabbing"
+						class="node cursor-grab active:cursor-grabbing {faded ? 'map-dimmed' : hoverFaded ? 'hover-dimmed' : ''}"
 						onpointerdown={(e) => onNodePointerDown(e, node)}
 						onpointermove={(e) => onNodePointerMove(e, node)}
 						onpointerup={(e) => onNodePointerUp(e, node)}
 						onpointercancel={(e) => onNodePointerUp(e, node)}
+						onpointerenter={() => (hoveredNodeId = node.id)}
+						onpointerleave={() => (hoveredNodeId = null)}
+						oncontextmenu={(e) => openContextMenu(e, 'node', node.id)}
+						ondblclick={(e) => {
+							e.stopPropagation();
+							onOpen?.(node.id);
+						}}
 						role="button"
 						tabindex="0"
+						aria-label="{node.name} — double-click for details"
 						onkeydown={(e) => {
-							if (e.key === 'Enter') onSelect(node.id);
+							if (e.key === 'Enter') (onOpen ?? onSelect)(node.id);
 						}}
 					>
+						{#if flashingId === node.id}
+							<circle r={isCentral ? 48 : 40} class="flash-ring" />
+						{/if}
 						<circle
-							r={centralId === node.id ? 48 : selectedId === node.id ? 40 : 36}
-							fill="white"
-							stroke={centralId === node.id ? '#f59e0b' : selectedId === node.id ? '#2563eb' : '#cbd5e1'}
-							stroke-width={centralId === node.id ? 4 : selectedId === node.id ? 3 : 1.5}
-							class="concept-node {selectedId === node.id ? 'selected' : ''} {centralId === node.id ? 'central' : ''} {centralId && centralId !== node.id && !simLinks.some((link) => (resolveEnd(link.source)?.id === centralId && resolveEnd(link.target)?.id === node.id) || (resolveEnd(link.target)?.id === centralId && resolveEnd(link.source)?.id === node.id)) ? 'map-dimmed' : ''} drop-shadow-sm transition-[r,stroke]"
+							r={isCentral ? 48 : isSelected ? 40 : 36}
+							class="concept-node {isSelected ? 'selected' : ''} {isCentral ? 'central' : ''} {hoveredNodeId === node.id ? 'hovered' : ''}"
 						/>
 						<foreignObject x="-40" y="-40" width="80" height="80" class="pointer-events-none">
-							<div
-								class="flex h-full w-full items-center justify-center px-1 text-center text-[11px] font-bold leading-tight text-slate-700"
-							>
+							<div class="node-label flex h-full w-full items-center justify-center px-1 text-center text-[11px] font-bold leading-tight">
 								{node.name}
 							</div>
 						</foreignObject>
 						<title>{node.name}</title>
 					</g>
+				{/if}
+			{/each}
+
+			<!-- Relation labels, drawn above nodes and kept upright and at a
+			     constant on-screen size regardless of zoom/rotation. -->
+			{#each simLinks as link (link.id)}
+				{#if selectedRelationId === link.id || hoveredLinkId === link.id}
+					{@const endpoints = linkEndpoints(link)}
+					{#if endpoints}
+						{@const meta = metaFor(link.type)}
+						{@const mx = 0.25 * endpoints.x1 + 0.5 * endpoints.cx + 0.25 * endpoints.x2}
+						{@const my = 0.25 * endpoints.y1 + 0.5 * endpoints.cy + 0.25 * endpoints.y2}
+						<g transform="translate({mx} {my}) rotate({-rotation}) scale({1 / zoom})" class="pointer-events-none">
+							<foreignObject x="-110" y="-14" width="220" height="28">
+								<div class="flex h-full items-center justify-center">
+									<span class="edge-label" style="--edge: {meta.color}">{meta.phrase}</span>
+								</div>
+							</foreignObject>
+						</g>
+					{/if}
 				{/if}
 			{/each}
 		</g>
@@ -696,44 +838,50 @@
 	     that was actually pressed. Stopping propagation here keeps that pan
 	     handler from ever engaging for clicks that start on the controls. -->
 	<div
-		class="absolute bottom-4 right-4 flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+		class="map-view-controls absolute bottom-4 right-4 flex items-center gap-0.5 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur"
 		role="toolbar"
 		aria-label="Map view controls"
 		tabindex="-1"
 		onpointerdown={(e) => e.stopPropagation()}
+		oncontextmenu={(e) => e.stopPropagation()}
 	>
-		<button
-			type="button"
-			class="flex h-8 w-8 items-center justify-center rounded text-lg text-slate-600 hover:bg-slate-100"
-			onclick={() => (zoom = Math.min(3, zoom * 1.2))}
-			aria-label="Zoom in">+</button
-		>
-		<button
-			type="button"
-			class="flex h-8 w-8 items-center justify-center rounded text-lg text-slate-600 hover:bg-slate-100"
-			onclick={() => (zoom = Math.max(0.25, zoom * 0.8))}
-			aria-label="Zoom out">−</button
-		>
-		<button
-			type="button"
-			class="flex h-8 w-8 items-center justify-center rounded text-lg text-slate-600 hover:bg-slate-100"
-			onclick={rotateView}
-			aria-label="Rotate view 90°">⟳</button
-		>
-		<button
-			type="button"
-			class="flex h-8 w-8 items-center justify-center rounded text-lg text-slate-600 hover:bg-slate-100"
-			onclick={resetView}
-			aria-label="Reset view">⤾</button
-		>
+		<button type="button" class="map-view-btn" onclick={zoomIn} aria-label="Zoom in" title="Zoom in (+)">
+			<Icon name="zoomIn" />
+		</button>
+		<button type="button" class="map-view-btn" onclick={zoomOut} aria-label="Zoom out" title="Zoom out (−)">
+			<Icon name="zoomOut" />
+		</button>
+		<button type="button" class="map-view-btn" onclick={fitView} aria-label="Fit map to view" title="Fit to view (0)">
+			<Icon name="fit" />
+		</button>
+		<button type="button" class="map-view-btn" onclick={rotateView} aria-label="Rotate view 90°" title="Rotate 90°">
+			<Icon name="rotate" />
+		</button>
+		<button type="button" class="map-view-btn" onclick={resetView} aria-label="Reset view" title="Reset view">
+			<Icon name="reset" />
+		</button>
+		{#if onToggleFullscreen}
+			<div class="mx-0.5 h-5 w-px bg-slate-200"></div>
+			<button
+				type="button"
+				class="map-view-btn"
+				onclick={onToggleFullscreen}
+				aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
+				title={fullscreen ? 'Exit full screen (F)' : 'Full screen (F)'}
+			>
+				<Icon name={fullscreen ? 'minimize' : 'maximize'} />
+			</button>
+		{/if}
 	</div>
 
 	<!-- Minimap: overview of every node's position with a polygon showing the
 	     current viewport (accurate even when rotated), click to jump there. -->
 	{#if graphBounds && simNodes.length > 1}
 		<div
-			class="absolute bottom-4 left-4 overflow-hidden rounded-lg border border-slate-200 bg-white/95 shadow-sm"
+			class="absolute bottom-4 left-4 hidden overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-sm sm:block"
 			style="width: {MINIMAP_WIDTH}px; height: {MINIMAP_HEIGHT}px"
+			oncontextmenu={(e) => e.stopPropagation()}
+			role="presentation"
 		>
 			<svg
 				width={MINIMAP_WIDTH}
@@ -752,16 +900,15 @@
 							y={node.y - markerSize}
 							width={markerSize * 2}
 							height={markerSize * 2}
-							fill="#94a3b8"
+							rx={markerSize}
+							class="minimap-node {node.id === selectedId ? 'selected' : ''}"
 						/>
 					{/if}
 				{/each}
 				{#if viewportPolygon}
 					<polygon
 						points={viewportPolygon}
-						fill="#2563eb"
-						fill-opacity="0.12"
-						stroke="#2563eb"
+						class="minimap-viewport"
 						stroke-width={Math.max(1, Math.min(graphBounds.w, graphBounds.h) / 200)}
 					/>
 				{/if}
@@ -769,3 +916,4 @@
 		</div>
 	{/if}
 </div>
+

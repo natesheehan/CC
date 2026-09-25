@@ -113,7 +113,8 @@
 </script>
 
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8">
-	<div class="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+	<div class="cc-panel flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+		<div class="cc-stripe shrink-0"></div>
 		<div class="border-b border-slate-100 px-6 py-4">
 			<h2 class="text-lg font-semibold text-slate-800">
 				{mode === 'create' ? 'Add a concept' : 'Edit concept'}

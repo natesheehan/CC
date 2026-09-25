@@ -1,4 +1,6 @@
 <script lang="ts">
+	import PageHero from '$lib/components/PageHero.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -32,6 +34,16 @@
 	});
 
 	const letters = $derived(grouped.map(([letter]) => letter));
+	const mapCount = $derived(new Set(data.concepts.map((c) => c.mapId)).size);
+	const definedPct = $derived(
+		data.concepts.length === 0
+			? 0
+			: Math.round((data.concepts.filter((c) => c.definition?.trim()).length / data.concepts.length) * 100)
+	);
+
+	// Each letter group gets its own accent from the palette.
+	const ACCENTS = ['var(--memphis-pink)', 'var(--memphis-cyan)', 'var(--memphis-yellow)', 'var(--memphis-purple)'];
+	const accentFor = (i: number) => ACCENTS[i % ACCENTS.length];
 
 	function closeDetails() {
 		selectedConcept = null;
@@ -49,133 +61,149 @@
 </svelte:head>
 
 
-<div class="dictionary-page flex-1">
-	<section class="shared-page-hero relative overflow-hidden border-b border-slate-200 bg-white">
-		<div class="community-grid absolute inset-0" aria-hidden="true"></div>
-		<div class="community-orbit community-orbit-one absolute" aria-hidden="true"></div>
-		<div class="community-orbit community-orbit-two absolute" aria-hidden="true"></div>
-		<div class="relative mx-auto max-w-5xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20">
-			<div class="dictionary-intro max-w-2xl community-reveal">
-				<p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">The shared lexicon</p>
-				<h1 class="mt-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl">Concept dictionary</h1>
-				<p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">
-			Browse the ideas that make up every map. Select an entry to read its definition and see where
-			it appears across the community.
-				</p>
-				<div class="mt-5 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
-			<span class="rounded-full bg-blue-50 px-3 py-1.5 text-blue-700">{data.concepts.length} entries</span>
-			<span class="rounded-full bg-slate-100 px-3 py-1.5">{grouped.length} letter groups</span>
+<div class="flex-1">
+	<PageHero
+		eyebrow="The shared lexicon"
+		title="Concept dictionary"
+		description="Browse the ideas that make up every map. Open an entry to read its definition and see where it appears across the community."
+		width="max-w-5xl"
+	>
+		<div class="flex flex-wrap gap-3">
+			<div class="cc-stat">
+				<span class="cc-dot" style="--dot: var(--memphis-pink)"></span>
+				<div>
+					<p class="cc-stat-value">{data.concepts.length}</p>
+					<p class="cc-stat-label">entries</p>
+				</div>
+			</div>
+			<div class="cc-stat">
+				<span class="cc-dot" style="--dot: var(--memphis-cyan)"></span>
+				<div>
+					<p class="cc-stat-value">{mapCount}</p>
+					<p class="cc-stat-label">maps</p>
+				</div>
+			</div>
+			<div class="cc-stat">
+				<span class="cc-dot" style="--dot: var(--memphis-yellow)"></span>
+				<div>
+					<p class="cc-stat-value">{definedPct}%</p>
+					<p class="cc-stat-label">defined</p>
 				</div>
 			</div>
 		</div>
-	</section>
+	</PageHero>
 
-	<div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:py-14">
-	<div class="dictionary-tools flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<label class="relative block w-full sm:max-w-md">
-			<span class="sr-only">Search concepts</span>
-			<input
-				bind:value={query}
-				placeholder="Search the dictionary…"
-				class="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-10 text-sm shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-			/>
-			<span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true">⌕</span>
-			{#if query}
-				<button type="button" onclick={() => (query = '')} class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 hover:text-blue-600" aria-label="Clear search">Clear</button>
+	<div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:py-12">
+		<div class="dictionary-tools z-10 sm:sticky sm:top-[3.9rem] -mx-4 flex flex-col gap-3 px-4 py-3 sm:-mx-6 sm:px-6 md:flex-row md:items-center md:justify-between">
+			<label class="relative block w-full md:max-w-sm">
+				<span class="sr-only">Search concepts</span>
+				<input bind:value={query} placeholder="Search the dictionary…" class="cc-input !py-2.5 !pl-10 !pr-16" />
+				<span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"><Icon name="search" /></span>
+				{#if query}
+					<button type="button" onclick={() => (query = '')} class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-700" aria-label="Clear search">Clear</button>
+				{/if}
+			</label>
+			{#if letters.length > 0}
+				<nav class="flex flex-wrap gap-1" aria-label="Jump to letter">
+					{#each letters as letter (letter)}
+						<a href="#letter-{letter}" class="dictionary-letter">{letter}</a>
+					{/each}
+				</nav>
 			{/if}
-		</label>
-		{#if letters.length > 0}
-			<nav class="flex flex-wrap gap-1" aria-label="Jump to letter">
-				{#each letters as letter (letter)}
-					<a href="#letter-{letter}" class="flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-xs font-semibold text-slate-500 transition hover:bg-blue-50 hover:text-blue-700">{letter}</a>
-				{/each}
-			</nav>
-		{/if}
-	</div>
-
-	{#if filtered.length === 0}
-		<p class="mt-10 text-sm text-slate-400">
-			{data.concepts.length === 0 ? 'No concepts have been created yet.' : `No concepts match "${query}".`}
-		</p>
-	{:else}
-		<div class="mt-10 space-y-10">
-			{#each grouped as [letter, concepts] (letter)}
-				<section id="letter-{letter}" class="scroll-mt-6">
-					<div class="flex items-center gap-3">
-						<h2 class="text-sm font-bold text-blue-600">{letter}</h2>
-						<div class="h-px flex-1 bg-slate-200"></div>
-						<span class="text-xs text-slate-400">{concepts.length}</span>
-					</div>
-					<ul class="mt-3 grid gap-3 sm:grid-cols-2">
-						{#each concepts as concept (concept.id)}
-							<li class="dictionary-entry">
-								<button type="button" onclick={() => (selectedConcept = concept)} class="group flex w-full flex-col gap-2 text-left">
-									<div class="flex items-start justify-between gap-3">
-										<span class="font-semibold text-slate-800 transition group-hover:text-blue-600">{concept.name}</span>
-										<span class="shrink-0 text-xs text-slate-400">View entry →</span>
-									</div>
-									{#if concept.definition}
-										<p class="line-clamp-2 text-sm leading-relaxed text-slate-500">{concept.definition}</p>
-									{:else}
-										<p class="text-sm italic text-slate-400">No definition yet.</p>
-									{/if}
-									<div class="flex items-center gap-2 text-xs text-slate-400">
-										<span class="dictionary-dot"></span>
-										<span>{concept.mapName}</span>
-									</div>
-								</button>
-							</li>
-						{/each}
-					</ul>
-				</section>
-			{/each}
 		</div>
-	{/if}
+
+		{#if filtered.length === 0}
+			<div class="cc-card mt-8 !border-dashed px-6 py-14 text-center">
+				<p class="cc-display text-xl text-slate-900">{data.concepts.length === 0 ? 'Nothing here yet' : 'No matches'}</p>
+				<p class="cc-muted mt-2 text-sm">
+					{data.concepts.length === 0 ? 'No concepts have been created yet.' : `No concepts match "${query}".`}
+				</p>
+			</div>
+		{:else}
+			<div class="mt-8 space-y-12">
+				{#each grouped as [letter, concepts], gi (letter)}
+					<section id="letter-{letter}" class="scroll-mt-40" style="--accent: {accentFor(gi)}">
+						<div class="flex items-center gap-3">
+							<h2 class="dictionary-letter-badge cc-display">{letter}</h2>
+							<div class="h-0.5 flex-1 rounded bg-slate-200"></div>
+							<span class="cc-chip">{concepts.length}</span>
+						</div>
+						<ul class="mt-4 grid gap-4 sm:grid-cols-2">
+							{#each concepts as concept, ci (concept.id)}
+								<li class="cc-rise" style="--delay: {Math.min(ci, 6) * 40}ms">
+									<button
+										type="button"
+										onclick={() => (selectedConcept = concept)}
+										class="dictionary-card cc-card cc-card-link group flex h-full w-full flex-col gap-2 p-4 pl-5 text-left"
+									>
+										<div class="flex items-start justify-between gap-3">
+											<span class="cc-display text-[1.05rem] leading-snug text-slate-900">{concept.name}</span>
+											<span class="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-600"><Icon name="chevronRight" /></span>
+										</div>
+										{#if concept.definition}
+											<p class="cc-muted line-clamp-2 text-sm leading-relaxed">{concept.definition}</p>
+										{:else}
+											<p class="text-sm italic text-slate-400">No definition yet.</p>
+										{/if}
+										<span class="cc-chip mt-auto self-start !text-[11px]">
+											<span class="cc-dot !h-2 !w-2" style="--dot: var(--accent)"></span>{concept.mapName}
+										</span>
+									</button>
+								</li>
+							{/each}
+						</ul>
+					</section>
+				{/each}
+			</div>
+		{/if}
 	</div>
 </div>
 
 {#if selectedConcept}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-6"
 		role="presentation"
 		onclick={(event) => event.target === event.currentTarget && closeDetails()}
 	>
 		<div
-			class="dictionary-modal max-h-[min(760px,90vh)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl"
+			class="cc-panel flex max-h-[min(760px,90vh)] w-full max-w-2xl flex-col overflow-hidden"
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="concept-detail-title"
 		>
-			<div class="border-b border-slate-100 px-6 py-5 sm:px-8">
+			<div class="cc-stripe shrink-0"></div>
+			<div class="dictionary-modal-head shrink-0 px-6 py-5 sm:px-8">
 				<div class="flex items-start justify-between gap-4">
-					<div>
-						<p class="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">Dictionary entry</p>
-						<h2 id="concept-detail-title" class="mt-2 text-3xl font-bold tracking-tight text-slate-900">{selectedConcept.name}</h2>
+					<div class="min-w-0">
+						<p class="cc-eyebrow">Dictionary entry</p>
+						<h2 id="concept-detail-title" class="mt-1.5 text-3xl text-slate-900">{selectedConcept.name}</h2>
 					</div>
-					<button type="button" onclick={closeDetails} class="rounded-lg p-2 text-xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Close concept details">×</button>
+					<button type="button" onclick={closeDetails} class="cc-btn cc-btn-plain cc-btn-sm !px-2" aria-label="Close concept details">
+						<Icon name="x" />
+					</button>
 				</div>
 			</div>
 
-			<div class="space-y-6 px-6 py-6 sm:px-8">
+			<div class="min-h-0 space-y-6 overflow-y-auto px-6 py-6 sm:px-8">
 				{#if selectedConcept.definition}
 					<div>
-						<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Definition</h3>
+						<h3 class="cc-stat-label">Definition</h3>
 						<p class="mt-2 whitespace-pre-wrap text-base leading-7 text-slate-700">{selectedConcept.definition}</p>
 					</div>
 				{:else}
-					<p class="rounded-xl bg-slate-50 p-4 text-sm italic text-slate-500">No definition has been added yet.</p>
+					<p class="cc-card !border-dashed p-4 text-sm italic text-slate-500">No definition has been added yet.</p>
 				{/if}
 
-				<div class="grid gap-5 sm:grid-cols-2">
+				<div class="grid gap-4 sm:grid-cols-2">
 					{#if selectedConcept.example}
-						<div class="rounded-xl bg-slate-50 p-4">
-							<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Example</h3>
+						<div class="dictionary-note" style="--accent: var(--memphis-cyan)">
+							<h3 class="cc-stat-label">Example</h3>
 							<p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{selectedConcept.example}</p>
 						</div>
 					{/if}
 					{#if selectedConcept.quizQuestion}
-						<div class="rounded-xl bg-blue-50 p-4">
-							<h3 class="text-xs font-semibold uppercase tracking-wide text-blue-600">Quiz prompt</h3>
+						<div class="dictionary-note" style="--accent: var(--memphis-yellow)">
+							<h3 class="cc-stat-label">Quiz prompt</h3>
 							<p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{selectedConcept.quizQuestion}</p>
 						</div>
 					{/if}
@@ -183,22 +211,22 @@
 
 				{#if selectedConcept.literatureLink}
 					<div>
-						<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Source</h3>
-						<a href={selectedConcept.literatureLink} target="_blank" rel="noreferrer" class="mt-2 block truncate text-sm font-medium text-blue-600 hover:text-blue-700">{selectedConcept.literatureLink}</a>
+						<h3 class="cc-stat-label">Source</h3>
+						<a href={selectedConcept.literatureLink} target="_blank" rel="noreferrer" class="mt-2 block truncate text-sm font-semibold text-memphis-pinkDeep underline decoration-2 underline-offset-2">{selectedConcept.literatureLink}</a>
 					</div>
 				{/if}
 
 				<div>
-					<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Appears across maps</h3>
-					<p class="mt-1 text-sm text-slate-500">This idea is present in {matchingMaps.length} map{matchingMaps.length === 1 ? '' : 's'}.</p>
-					<div class="mt-3 space-y-2">
+					<h3 class="cc-stat-label">Appears across maps</h3>
+					<p class="cc-muted mt-1 text-sm">This idea is present in {matchingMaps.length} map{matchingMaps.length === 1 ? '' : 's'}.</p>
+					<div class="mt-3 space-y-2.5">
 						{#each matchingMaps as mapConcept (mapConcept.id)}
-							<a href="/maps/{mapConcept.mapId}?concept={mapConcept.id}" class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50">
+							<a href="/maps/{mapConcept.mapId}?concept={mapConcept.id}" class="cc-card cc-card-link flex items-center justify-between gap-3 px-4 py-3">
 								<div class="min-w-0">
-									<p class="truncate text-sm font-semibold text-slate-800">{mapConcept.mapName}</p>
+									<p class="truncate text-sm font-bold text-slate-800">{mapConcept.mapName}</p>
 									<p class="mt-0.5 text-xs text-slate-400">{mapConcept.definition ? 'Has a definition' : 'No definition yet'}</p>
 								</div>
-								<span class="shrink-0 text-sm text-blue-600">Open map →</span>
+								<span class="cc-chip cc-chip-yellow shrink-0">Open map <Icon name="chevronRight" class="h-3 w-3" /></span>
 							</a>
 						{/each}
 					</div>
@@ -207,3 +235,78 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	.dictionary-tools {
+		background: rgb(255 246 233 / 0.92);
+		backdrop-filter: blur(6px);
+	}
+	:global(.dark) .dictionary-tools {
+		background: rgb(15 23 42 / 0.9);
+	}
+	.dictionary-letter {
+		display: flex;
+		height: 1.9rem;
+		min-width: 1.9rem;
+		align-items: center;
+		justify-content: center;
+		border: 1.5px solid transparent;
+		border-radius: 0.5rem;
+		padding: 0 0.4rem;
+		font-size: 0.8rem;
+		font-weight: 800;
+		color: #475569;
+		transition:
+			background-color 150ms ease,
+			border-color 150ms ease;
+	}
+	.dictionary-letter:hover {
+		border-color: var(--memphis-ink);
+		background: var(--memphis-yellow);
+		color: var(--memphis-ink);
+	}
+	:global(.dark) .dictionary-letter {
+		color: #cbd5e1;
+	}
+	.dictionary-letter-badge {
+		display: flex;
+		height: 2.75rem;
+		width: 2.75rem;
+		align-items: center;
+		justify-content: center;
+		border: 2px solid var(--memphis-ink);
+		border-radius: 0.75rem;
+		background: var(--accent);
+		font-size: 1.4rem;
+		color: var(--memphis-ink);
+		box-shadow: 3px 3px 0 var(--memphis-ink);
+		transform: rotate(-4deg);
+	}
+	.dictionary-card {
+		position: relative;
+		overflow: hidden;
+	}
+	.dictionary-card::before {
+		content: '';
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: 5px;
+		background: var(--accent);
+	}
+	.dictionary-note {
+		border: 2px solid var(--memphis-ink);
+		border-left: 6px solid var(--accent);
+		border-radius: 0.75rem;
+		padding: 1rem;
+	}
+	.dictionary-modal-head {
+		border-bottom: 2px solid rgb(20 17 15 / 0.12);
+	}
+	:global(.dark) .dictionary-note {
+		border-color: #475569;
+		border-left-color: var(--accent);
+	}
+	:global(.dark) .dictionary-modal-head {
+		border-color: #334155;
+	}
+</style>
