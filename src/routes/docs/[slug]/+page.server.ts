@@ -4,7 +4,8 @@ const articlePaths: Record<string, string> = {
 	'get-started': 'src/lib/content/docs/how-it-works.md',
 	philosophy: 'src/lib/content/docs/pedagogy.md',
 	governance: 'src/lib/content/docs/governance.md',
-	contributing: 'src/lib/content/docs/contributing.md'
+	contributing: 'src/lib/content/docs/contributing.md',
+	cite: 'src/lib/content/docs/cite.md'
 };
 
 type GitHubCommit = {
