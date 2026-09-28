@@ -18,6 +18,7 @@
 			rows: [
 				{ keys: ['Drag'], text: 'empty space to pan' },
 				{ keys: ['Scroll'], text: 'to zoom toward the cursor' },
+				{ keys: ['Pinch'], text: 'with two fingers to zoom on touch screens' },
 				{ keys: ['0'], text: 'fit the whole map in view' },
 				{ keys: ['Minimap'], text: 'click to jump to an area' }
 			]
@@ -138,7 +139,7 @@
 					<circle cx="95" cy="100" r="10" class="map-help-node" />
 				</svg>
 				<p class="text-[11px] font-bold uppercase tracking-[0.18em] text-memphis-pink">Quick guide</p>
-				<h2 class="mt-1 max-w-sm text-xl text-slate-900" style="font-family: 'Archivo Black', Inter, sans-serif">
+				<h2 class="mt-1 max-w-sm text-xl text-slate-900" style="font-family: var(--font-display); font-weight: 800">
 					Concepts are circles, relationships are lines.
 				</h2>
 				<p class="mt-1.5 max-w-md text-sm text-slate-600">

@@ -1,8 +1,12 @@
 <script lang="ts">
+	import '@fontsource-variable/inter';
+	import '@fontsource-variable/bricolage-grotesque/opsz.css';
 	import '../app.css';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import UserStatsPopover from '$lib/components/UserStatsPopover.svelte';
+	import ExperimentalBadge from '$lib/components/ExperimentalBadge.svelte';
+	import { APP_VERSION } from '$lib/shared/version';
 
 	let { data, children } = $props();
 	let isDark = $state(false);
@@ -29,10 +33,17 @@
 	];
 
 	const footerLinks = [
+		{ href: '/about', label: 'About' },
 		{ href: '/docs', label: 'Docs' },
 		{ href: '/community', label: 'Community' },
 		{ href: '/maps', label: 'Maps' },
 		{ href: '/concepts', label: 'Concepts' }
+	];
+
+	const legalLinks = [
+		{ href: '/privacy', label: 'Privacy Policy' },
+		{ href: '/terms', label: 'Terms of Service' },
+		{ href: '/cookies', label: 'Cookie Notice' }
 	];
 
 	function isActive(href: string): boolean {
@@ -41,21 +52,47 @@
 	}
 </script>
 
+{#snippet themeToggle()}
+	<button
+		type="button"
+		class="theme-toggle group"
+		role="switch"
+		aria-checked={isDark}
+		aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+		title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+		onclick={toggleTheme}
+	>
+		<span class="theme-toggle-track">
+			<svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true">
+				<circle cx="12" cy="12" r="3.5" />
+				<path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+			</svg>
+			<svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true">
+				<path d="M20.5 15.3A8.5 8.5 0 0 1 8.7 3.5 8.5 8.5 0 1 0 20.5 15.3Z" />
+			</svg>
+			<span class="theme-toggle-thumb"></span>
+		</span>
+	</button>
+{/snippet}
+
 <div class="flex min-h-screen flex-col">
 	<header class="site-header sticky top-0 z-40 bg-white">
 		<div class="cc-stripe"></div>
 		<div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
-			<a href="/" class="site-logo group flex items-center gap-2.5">
-				<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true" class="shrink-0">
-					<path d="M9 10 L25 10 M9 10 L17 25 M25 10 L17 25" stroke-width="2.5" class="site-logo-edges" />
-					<circle cx="9" cy="10" r="5.5" fill="#ff3d81" stroke="#14110f" stroke-width="2" class="site-logo-node" />
-					<circle cx="25" cy="10" r="5.5" fill="#ffd23f" stroke="#14110f" stroke-width="2" class="site-logo-node" style="animation-delay: 80ms" />
-					<circle cx="17" cy="25" r="5.5" fill="#00c2d1" stroke="#14110f" stroke-width="2" class="site-logo-node" style="animation-delay: 160ms" />
-				</svg>
-				<span class="cc-display text-[1.05rem] leading-none text-slate-900">Concept<br class="sm:hidden" /><span class="hidden sm:inline"> </span>Cartography</span>
-			</a>
+			<div class="flex min-w-0 items-center gap-2.5 sm:gap-3">
+				<a href="/" class="site-logo group flex items-center gap-2.5">
+					<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true" class="shrink-0">
+						<path d="M9 10 L25 10 M9 10 L17 25 M25 10 L17 25" stroke-width="2.5" class="site-logo-edges" />
+						<circle cx="9" cy="10" r="5.5" fill="#ff3d81" stroke="#14110f" stroke-width="2" class="site-logo-node" />
+						<circle cx="25" cy="10" r="5.5" fill="#ffd23f" stroke="#14110f" stroke-width="2" class="site-logo-node" style="animation-delay: 80ms" />
+						<circle cx="17" cy="25" r="5.5" fill="#00c2d1" stroke="#14110f" stroke-width="2" class="site-logo-node" style="animation-delay: 160ms" />
+					</svg>
+					<span class="cc-display text-[1.05rem] leading-none text-slate-900">Concept<br class="sm:hidden" /><span class="hidden sm:inline">&nbsp;</span>Cartography</span>
+				</a>
+				<ExperimentalBadge />
+			</div>
 
-			<nav class="hidden items-center gap-1.5 sm:flex" aria-label="Primary">
+			<nav class="hidden items-center gap-1.5 md:flex" aria-label="Primary">
 				{#each tabs as tab (tab.href)}
 					<a href={tab.href} aria-current={isActive(tab.href) ? 'page' : undefined} class="site-tab">
 						{tab.label}
@@ -63,43 +100,27 @@
 				{/each}
 			</nav>
 
-			<div class="flex items-center gap-2 sm:gap-3">
-				<button
-					type="button"
-					class="theme-toggle group"
-					role="switch"
-					aria-checked={isDark}
-					aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-					title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-					onclick={toggleTheme}
-				>
-					<span class="theme-toggle-track">
-						<svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true">
-							<circle cx="12" cy="12" r="3.5" />
-							<path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-						</svg>
-						<svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true">
-							<path d="M20.5 15.3A8.5 8.5 0 0 1 8.7 3.5 8.5 8.5 0 1 0 20.5 15.3Z" />
-						</svg>
-						<span class="theme-toggle-thumb"></span>
-					</span>
-				</button>
+			<div class="flex shrink-0 items-center gap-2 sm:gap-3">
+				<span class="hidden md:inline-flex">{@render themeToggle()}</span>
 
 				{#if data.user}
 					<UserStatsPopover userId={data.user.id} name={data.user.name} color={data.user.color} />
 				{:else if page.url.pathname !== '/login'}
-					<a href="/login" class="cc-btn cc-btn-primary cc-btn-sm">Sign in</a>
+					<a href="/login" class="cc-btn cc-btn-primary cc-btn-sm whitespace-nowrap">Sign in</a>
 				{/if}
 			</div>
 		</div>
 
-		<nav class="flex items-center gap-1.5 overflow-x-auto px-4 pb-2.5 sm:hidden" aria-label="Primary">
-			{#each tabs as tab (tab.href)}
-				<a href={tab.href} aria-current={isActive(tab.href) ? 'page' : undefined} class="site-tab shrink-0">
-					{tab.label}
-				</a>
-			{/each}
-		</nav>
+		<div class="flex items-center gap-2 px-4 pb-2.5 sm:px-6 md:hidden">
+			<nav class="-ml-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" aria-label="Primary">
+				{#each tabs as tab (tab.href)}
+					<a href={tab.href} aria-current={isActive(tab.href) ? 'page' : undefined} class="site-tab shrink-0">
+						{tab.label}
+					</a>
+				{/each}
+			</nav>
+			<span class="shrink-0">{@render themeToggle()}</span>
+		</div>
 	</header>
 
 	<main class="flex flex-1 flex-col">
@@ -123,6 +144,14 @@
 				{/if}
 			</nav>
 		</div>
+		<div class="site-legal mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-4 text-xs sm:px-6">
+			<p class="cc-muted">© {new Date().getFullYear()} Concept Cartography · v{APP_VERSION} (experimental)</p>
+			<nav class="flex flex-wrap gap-x-4 gap-y-1" aria-label="Legal">
+				{#each legalLinks as link (link.href)}
+					<a class="font-semibold text-slate-500 hover:text-slate-900 hover:underline" href={link.href}>{link.label}</a>
+				{/each}
+			</nav>
+		</div>
 		<div class="cc-stripe"></div>
 	</footer>
 </div>
@@ -133,6 +162,15 @@
 	}
 	.site-footer {
 		border-top: 2px solid var(--memphis-ink);
+	}
+	.site-legal {
+		border-top: 1.5px dashed rgb(20 17 15 / 0.15);
+	}
+	:global(.dark) .site-legal {
+		border-color: #334155;
+	}
+	:global(.dark) .site-legal a:hover {
+		color: #f8fafc;
 	}
 	:global(.dark) .site-header,
 	:global(.dark) .site-footer {
@@ -153,6 +191,11 @@
 			color 150ms ease,
 			border-color 150ms ease,
 			transform 150ms ease;
+	}
+	@media (max-width: 400px) {
+		.site-tab {
+			padding: 0.3rem 0.6rem;
+		}
 	}
 	.site-tab:hover {
 		border-color: var(--memphis-ink);

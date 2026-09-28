@@ -375,12 +375,16 @@
 
 	// --- node dragging ---------------------------------------------------------
 	let draggingId: string | null = null;
+	// Where the dragged node was pinned before the drag, so a drag that turns
+	// into a pinch can be put back.
+	let dragOrigin: { fx: number | null | undefined; fy: number | null | undefined } | null = null;
 
 	function onNodePointerDown(e: PointerEvent, node: SimNode) {
 		e.stopPropagation();
-		if (e.button !== 0) return;
+		if (e.button !== 0 || pinching) return;
 		draggingId = node.id;
 		(e.target as Element).setPointerCapture(e.pointerId);
+		dragOrigin = { fx: node.fx, fy: node.fy };
 		node.fx = node.x;
 		node.fy = node.y;
 		simulation.alphaTarget(0.3).restart();
@@ -410,7 +414,7 @@
 	let panMoved = false;
 
 	function onBackgroundPointerDown(e: PointerEvent) {
-		if (e.button === 2) return;
+		if (e.button === 2 || pinching) return;
 		panning = true;
 		panMoved = false;
 		panStart = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
@@ -418,7 +422,7 @@
 	}
 
 	function onBackgroundPointerMove(e: PointerEvent) {
-		if (!panning) return;
+		if (!panning || pinching) return;
 		if (Math.hypot(e.clientX - panStart.x, e.clientY - panStart.y) > 4) panMoved = true;
 		pan = {
 			x: panStart.panX + (e.clientX - panStart.x),
@@ -427,8 +431,74 @@
 	}
 
 	function onBackgroundPointerUp(e: PointerEvent) {
-		if (panning && !panMoved && e.type === 'pointerup') onBackgroundClick?.();
+		if (panning && !panMoved && !pinched && e.type === 'pointerup') onBackgroundClick?.();
 		panning = false;
+	}
+
+	// --- touch pinch-zoom ----------------------------------------------------
+	// Tracked in the capture phase on the container so touches that land on a
+	// node or edge (which stop propagation) still count toward the gesture.
+	// Two fingers zoom around their midpoint and pan as the midpoint moves.
+	const touches = new Map<number, { x: number; y: number }>();
+	let pinching = false;
+	/** True once a pinch happened in the current gesture, until all fingers lift. */
+	let pinched = false;
+	let pinchStart = { dist: 1, zoom: 1, graphX: 0, graphY: 0 };
+
+	function touchPair() {
+		const [a, b] = [...touches.values()];
+		return {
+			dist: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
+			midX: (a.x + b.x) / 2,
+			midY: (a.y + b.y) / 2
+		};
+	}
+
+	function onTouchPointerDown(e: PointerEvent) {
+		if (e.pointerType !== 'touch') return;
+		if (touches.size === 0) pinched = false;
+		touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+		if (touches.size !== 2) return;
+
+		// Second finger down: abandon any pan or node drag and start pinching.
+		pinching = true;
+		pinched = true;
+		panning = false;
+		if (draggingId) {
+			const node = nodesById.get(draggingId);
+			if (node && dragOrigin) {
+				node.fx = dragOrigin.fx;
+				node.fy = dragOrigin.fy;
+			}
+			draggingId = null;
+			dragOrigin = null;
+			simulation.alphaTarget(0);
+		}
+		const { dist, midX, midY } = touchPair();
+		const g = screenToGraph(midX, midY);
+		pinchStart = { dist, zoom, graphX: g.x, graphY: g.y };
+	}
+
+	function onTouchPointerMove(e: PointerEvent) {
+		if (!touches.has(e.pointerId)) return;
+		touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+		if (!pinching || touches.size < 2 || !container) return;
+
+		const { dist, midX, midY } = touchPair();
+		const rect = container.getBoundingClientRect();
+		const next = Math.min(3, Math.max(0.25, pinchStart.zoom * (dist / pinchStart.dist)));
+		// Keep the graph point that started under the fingers' midpoint pinned
+		// beneath the (possibly moved) midpoint.
+		const { x: rx, y: ry } = rotateAndScale(pinchStart.graphX, pinchStart.graphY, next);
+		pan = { x: midX - rect.left - rx, y: midY - rect.top - ry };
+		zoom = next;
+	}
+
+	function onTouchPointerUp(e: PointerEvent) {
+		if (!touches.delete(e.pointerId)) return;
+		// Stay in pinch mode until every finger lifts, so the remaining finger
+		// doesn't suddenly start panning from a stale position.
+		if (touches.size === 0) pinching = false;
 	}
 
 	function onWheel(e: WheelEvent) {
@@ -626,7 +696,7 @@
 				const tspans = lines
 					.map((line, i) => `<tspan x="0" dy="${i === 0 ? startDy : lineHeight}">${escapeXml(line)}</tspan>`)
 					.join('');
-				return `<g transform="translate(${n.x} ${n.y})"><circle r="36" fill="white" stroke="#14110f" stroke-width="2" /><text text-anchor="middle" font-size="11" font-weight="700" font-family="Inter, system-ui, sans-serif" fill="#14110f">${tspans}</text></g>`;
+				return `<g transform="translate(${n.x} ${n.y})"><circle r="36" fill="white" stroke="#14110f" stroke-width="2" /><text text-anchor="middle" font-size="11" font-weight="700" font-family="Inter Variable, Inter, system-ui, sans-serif" fill="#14110f">${tspans}</text></g>`;
 			})
 			.join('');
 
@@ -689,6 +759,10 @@
 	onpointermove={onBackgroundPointerMove}
 	onpointerup={onBackgroundPointerUp}
 	onpointercancel={onBackgroundPointerUp}
+	onpointerdowncapture={onTouchPointerDown}
+	onpointermovecapture={onTouchPointerMove}
+	onpointerupcapture={onTouchPointerUp}
+	onpointercancelcapture={onTouchPointerUp}
 	onwheel={onWheel}
 	oncontextmenu={(e) => openContextMenu(e, 'background')}
 	role="application"

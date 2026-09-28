@@ -108,7 +108,7 @@
 	</PageHero>
 
 	<div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:py-12">
-		<div class="dictionary-tools z-10 sm:sticky sm:top-[3.9rem] -mx-4 flex flex-col gap-3 px-4 py-3 sm:-mx-6 sm:px-6 md:flex-row md:items-center md:justify-between">
+		<div class="dictionary-tools z-10 md:sticky md:top-[3.9rem] -mx-4 flex flex-col gap-3 px-4 py-3 sm:-mx-6 sm:px-6 md:flex-row md:items-center md:justify-between">
 			<label class="relative block w-full md:max-w-sm">
 				<span class="sr-only">Search concepts</span>
 				<input bind:value={query} placeholder="Search the dictionary…" class="cc-input !py-2.5 !pl-10 !pr-16" />

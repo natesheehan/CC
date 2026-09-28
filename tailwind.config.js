@@ -5,13 +5,13 @@ export default {
 		extend: {
 			fontFamily: {
 				sans: [
-					'Inter',
+					'"Inter Variable"',
 					'ui-sans-serif',
 					'system-ui',
 					'-apple-system',
 					'sans-serif'
 				],
-				display: ['"Archivo Black"', 'Inter', 'ui-sans-serif', 'sans-serif']
+				display: ['"Bricolage Grotesque Variable"', '"Inter Variable"', 'ui-sans-serif', 'sans-serif']
 			},
 			// Muted text greys follow the theme; values live in src/app.css.
 			textColor: {

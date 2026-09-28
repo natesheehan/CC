@@ -1279,7 +1279,8 @@
 		);
 	}
 	.map-title {
-		font-family: 'Archivo Black', Inter, ui-sans-serif, sans-serif;
+		font-family: var(--font-display);
+		font-weight: 800;
 		font-size: clamp(1.15rem, 1rem + 0.8vw, 1.6rem);
 		line-height: 1.15;
 		letter-spacing: -0.01em;

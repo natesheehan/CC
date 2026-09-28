@@ -74,7 +74,7 @@ As you add concepts, they appear on the map. Drag a circle to move it. The map s
 
 Some useful ways to find your way around:
 
-- **Zoom** by scrolling, or with the buttons in the bottom-right corner.
+- **Zoom** by scrolling, pinching with two fingers on a touch screen, or with the buttons in the bottom-right corner.
 - **Move around** by dragging an empty part of the map.
 - **Press 0** to fit the whole map on your screen.
 - **Hover** over a concept to highlight the concepts it's linked to.

@@ -21,7 +21,7 @@
 			<div class="cc-rise">
 				<p class="memphis-badge">Free & open source</p>
 				<h1 class="cc-hero-title mt-6">
-					Unpack the pleasures and problems of <span class="home-mark">layered meaning.</span>
+Concept Cartography
 				</h1>
 				<p class="cc-muted mt-5 max-w-lg text-lg leading-relaxed">
 					Collaborative concept maps for classrooms and research groups — define ideas precisely, name how they

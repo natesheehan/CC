@@ -389,7 +389,7 @@
 		fill: var(--node-text);
 		font-size: 12px;
 		font-weight: 700;
-		font-family: Inter, system-ui, sans-serif;
+		font-family: var(--font-sans);
 	}
 
 	/* Links */
@@ -433,7 +433,7 @@
 		fill: var(--node-text);
 		font-size: 10.5px;
 		font-weight: 700;
-		font-family: Inter, system-ui, sans-serif;
+		font-family: var(--font-sans);
 	}
 
 	.hero-caption-text {

@@ -151,7 +151,8 @@
 		box-shadow: 3px 3px 0 var(--memphis-ink);
 	}
 	.docs-nav-num {
-		font-family: 'Archivo Black', Inter, sans-serif;
+		font-family: var(--font-display);
+		font-weight: 800;
 		font-size: 0.75rem;
 		opacity: 0.6;
 	}

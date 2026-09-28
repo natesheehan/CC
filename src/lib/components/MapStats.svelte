@@ -196,7 +196,8 @@
 		display: flex;
 		align-items: center;
 		gap: 0.3rem;
-		font-family: 'Archivo Black', Inter, ui-sans-serif, sans-serif;
+		font-family: var(--font-display);
+		font-weight: 800;
 		font-size: 1rem;
 		line-height: 1.1;
 		color: var(--memphis-ink);

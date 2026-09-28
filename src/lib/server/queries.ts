@@ -241,6 +241,15 @@ export async function getUserStats(userId: string) {
 	};
 }
 
+const DAY_MS = 86_400_000;
+const ACTIVITY_WINDOW_DAYS = 30;
+
+/** Start (UTC midnight, ms) of the oldest day in the community activity window. */
+function activityWindowStart() {
+	const today = Math.floor(Date.now() / DAY_MS);
+	return (today - (ACTIVITY_WINDOW_DAYS - 1)) * DAY_MS;
+}
+
 export async function getCommunityStats() {
 	const [
 		userCount,
@@ -252,7 +261,8 @@ export async function getCommunityStats() {
 		topContributors,
 		relationMix,
 		recentActivity,
-		mapHighlights
+		mapHighlights,
+		dailyActivity
 	] = await Promise.all([
 		db.select({ count: sql<number>`count(*)` }).from(users).get(),
 		db.select({ count: sql<number>`count(*)` }).from(maps).get(),
@@ -295,8 +305,25 @@ export async function getCommunityStats() {
 			.orderBy(desc(activityLog.createdAt))
 			.limit(8)
 			.all(),
-		listMapsWithStats().then((allMaps) => allMaps.slice(0, 5))
+		listMapsWithStats().then((allMaps) => allMaps.slice(0, 5)),
+		// Edits per UTC day over the activity window, for the community pulse chart.
+		db
+			.select({
+				day: sql<number>`cast(${activityLog.createdAt} / ${sql.raw(String(DAY_MS))} as integer)`,
+				count: sql<number>`count(*)`
+			})
+			.from(activityLog)
+			.where(sql`${activityLog.createdAt} >= ${activityWindowStart()}`)
+			.groupBy(sql`1`)
+			.all()
 	]);
+
+	const countsByDay = new Map(dailyActivity.map((d) => [Number(d.day), Number(d.count)]));
+	const firstDay = activityWindowStart() / DAY_MS;
+	const activityByDay = Array.from({ length: ACTIVITY_WINDOW_DAYS }, (_, i) => ({
+		date: new Date((firstDay + i) * DAY_MS).toISOString().slice(0, 10),
+		count: countsByDay.get(firstDay + i) ?? 0
+	}));
 
 	return {
 		totals: {
@@ -310,6 +337,7 @@ export async function getCommunityStats() {
 		topContributors,
 		relationMix,
 		recentActivity,
-		mapHighlights
+		mapHighlights,
+		activityByDay
 	};
 }

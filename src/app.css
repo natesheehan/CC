@@ -10,6 +10,9 @@
 	--memphis-purple: #7c3aed;
 	--memphis-ink: #14110f;
 	--memphis-cream: #fff6e9;
+	/* Self-hosted via @fontsource-variable (imported in +layout.svelte). */
+	--font-display: 'Bricolage Grotesque Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 @layer base {
@@ -25,7 +28,8 @@
 		transition: background-color 240ms ease, color 240ms ease;
 	}
 	h1 {
-		font-family: 'Archivo Black', 'Inter', ui-sans-serif, sans-serif;
+		font-family: var(--font-display);
+		font-weight: 800;
 		letter-spacing: -0.01em;
 	}
 	html {
@@ -87,7 +91,8 @@
 
 	.docs-prose h2 {
 		@apply mt-12 text-2xl text-slate-900;
-		font-family: 'Archivo Black', 'Inter', ui-sans-serif, sans-serif;
+		font-family: var(--font-display);
+		font-weight: 800;
 		letter-spacing: -0.01em;
 	}
 
@@ -618,7 +623,7 @@
 
 /* ---------------------------------------------------------------------------
  * Design system ("cc-"): the map page's look — ink outlines, hard offset
- * shadows, the pink/yellow/cyan stripe, Archivo Black display type and a
+ * shadows, the pink/yellow/cyan stripe, Bricolage Grotesque display type and a
  * cream dotted ground — shared by every page, panel and modal.
  * ------------------------------------------------------------------------- */
 
@@ -633,7 +638,8 @@
 }
 
 .cc-display {
-	font-family: 'Archivo Black', 'Inter', ui-sans-serif, sans-serif;
+	font-family: var(--font-display);
+	font-weight: 800;
 	letter-spacing: -0.01em;
 }
 
@@ -667,7 +673,8 @@
 	background-image: radial-gradient(rgb(255 255 255 / 0.07) 1.2px, transparent 1.2px);
 }
 .cc-hero-title {
-	font-family: 'Archivo Black', 'Inter', ui-sans-serif, sans-serif;
+	font-family: var(--font-display);
+	font-weight: 800;
 	font-size: clamp(2rem, 1.4rem + 2.6vw, 3.75rem);
 	line-height: 1.04;
 	letter-spacing: -0.015em;
@@ -767,7 +774,8 @@
 	background: #172033;
 }
 .cc-stat-value {
-	font-family: 'Archivo Black', 'Inter', ui-sans-serif, sans-serif;
+	font-family: var(--font-display);
+	font-weight: 800;
 	font-size: 1.35rem;
 	line-height: 1.1;
 	color: var(--memphis-ink);
@@ -934,7 +942,8 @@
 	box-shadow: none !important;
 }
 .cc-panel h2 {
-	font-family: 'Archivo Black', 'Inter', ui-sans-serif, sans-serif;
+	font-family: var(--font-display);
+	font-weight: 800;
 	font-weight: 400;
 	letter-spacing: -0.01em;
 }
