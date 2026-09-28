@@ -6,6 +6,10 @@ declare global {
 		interface Locals {
 			user: User | null;
 		}
+		interface PageState {
+			/** Concept id shown in the dictionary modal via shallow routing. */
+			conceptEntry?: string;
+		}
 	}
 }
 

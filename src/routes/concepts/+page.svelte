@@ -1,12 +1,19 @@
 <script lang="ts">
+	import { pushState } from '$app/navigation';
+	import { page } from '$app/state';
 	import PageHero from '$lib/components/PageHero.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import ConceptEntry from '$lib/components/ConceptEntry.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	let query = $state('');
-	let selectedConcept = $state<PageData['concepts'][number] | null>(null);
+	// The open entry lives in history state (shallow routing), so the URL reads
+	// /concepts/<id> while the modal is open and back/forward work as expected.
+	const selectedConcept = $derived(
+		page.state.conceptEntry ? (data.concepts.find((c) => c.id === page.state.conceptEntry) ?? null) : null
+	);
 
 	function conceptKey(name: string): string {
 		return name.trim().toLocaleLowerCase();
@@ -45,8 +52,15 @@
 	const ACCENTS = ['var(--memphis-pink)', 'var(--memphis-cyan)', 'var(--memphis-yellow)', 'var(--memphis-purple)'];
 	const accentFor = (i: number) => ACCENTS[i % ACCENTS.length];
 
+	function openDetails(event: MouseEvent, id: string) {
+		// Let modified clicks (new tab, etc.) follow the real link.
+		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+		event.preventDefault();
+		pushState(`/concepts/${id}`, { conceptEntry: id });
+	}
+
 	function closeDetails() {
-		selectedConcept = null;
+		if (selectedConcept) history.back();
 	}
 
 	function onWindowKeydown(e: KeyboardEvent) {
@@ -57,7 +71,7 @@
 <svelte:window onkeydown={onWindowKeydown} />
 
 <svelte:head>
-	<title>Concept directory · Concept Cartography</title>
+	<title>{selectedConcept ? `${selectedConcept.name} · Concept dictionary` : 'Concept directory · Concept Cartography'}</title>
 </svelte:head>
 
 
@@ -131,9 +145,9 @@
 						<ul class="mt-4 grid gap-4 sm:grid-cols-2">
 							{#each concepts as concept, ci (concept.id)}
 								<li class="cc-rise" style="--delay: {Math.min(ci, 6) * 40}ms">
-									<button
-										type="button"
-										onclick={() => (selectedConcept = concept)}
+									<a
+										href="/concepts/{concept.id}"
+										onclick={(event) => openDetails(event, concept.id)}
 										class="dictionary-card cc-card cc-card-link group flex h-full w-full flex-col gap-2 p-4 pl-5 text-left"
 									>
 										<div class="flex items-start justify-between gap-3">
@@ -148,7 +162,7 @@
 										<span class="cc-chip mt-auto self-start !text-[11px]">
 											<span class="cc-dot !h-2 !w-2" style="--dot: var(--accent)"></span>{concept.mapName}
 										</span>
-									</button>
+									</a>
 								</li>
 							{/each}
 						</ul>
@@ -172,66 +186,7 @@
 			aria-labelledby="concept-detail-title"
 		>
 			<div class="cc-stripe shrink-0"></div>
-			<div class="dictionary-modal-head shrink-0 px-6 py-5 sm:px-8">
-				<div class="flex items-start justify-between gap-4">
-					<div class="min-w-0">
-						<p class="cc-eyebrow">Dictionary entry</p>
-						<h2 id="concept-detail-title" class="mt-1.5 text-3xl text-slate-900">{selectedConcept.name}</h2>
-					</div>
-					<button type="button" onclick={closeDetails} class="cc-btn cc-btn-plain cc-btn-sm !px-2" aria-label="Close concept details">
-						<Icon name="x" />
-					</button>
-				</div>
-			</div>
-
-			<div class="min-h-0 space-y-6 overflow-y-auto px-6 py-6 sm:px-8">
-				{#if selectedConcept.definition}
-					<div>
-						<h3 class="cc-stat-label">Definition</h3>
-						<p class="mt-2 whitespace-pre-wrap text-base leading-7 text-slate-700">{selectedConcept.definition}</p>
-					</div>
-				{:else}
-					<p class="cc-card !border-dashed p-4 text-sm italic text-slate-500">No definition has been added yet.</p>
-				{/if}
-
-				<div class="grid gap-4 sm:grid-cols-2">
-					{#if selectedConcept.example}
-						<div class="dictionary-note" style="--accent: var(--memphis-cyan)">
-							<h3 class="cc-stat-label">Example</h3>
-							<p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{selectedConcept.example}</p>
-						</div>
-					{/if}
-					{#if selectedConcept.quizQuestion}
-						<div class="dictionary-note" style="--accent: var(--memphis-yellow)">
-							<h3 class="cc-stat-label">Quiz prompt</h3>
-							<p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{selectedConcept.quizQuestion}</p>
-						</div>
-					{/if}
-				</div>
-
-				{#if selectedConcept.literatureLink}
-					<div>
-						<h3 class="cc-stat-label">Source</h3>
-						<a href={selectedConcept.literatureLink} target="_blank" rel="noreferrer" class="mt-2 block truncate text-sm font-semibold text-memphis-pinkDeep underline decoration-2 underline-offset-2">{selectedConcept.literatureLink}</a>
-					</div>
-				{/if}
-
-				<div>
-					<h3 class="cc-stat-label">Appears across maps</h3>
-					<p class="cc-muted mt-1 text-sm">This idea is present in {matchingMaps.length} map{matchingMaps.length === 1 ? '' : 's'}.</p>
-					<div class="mt-3 space-y-2.5">
-						{#each matchingMaps as mapConcept (mapConcept.id)}
-							<a href="/maps/{mapConcept.mapId}?concept={mapConcept.id}" class="cc-card cc-card-link flex items-center justify-between gap-3 px-4 py-3">
-								<div class="min-w-0">
-									<p class="truncate text-sm font-bold text-slate-800">{mapConcept.mapName}</p>
-									<p class="mt-0.5 text-xs text-slate-400">{mapConcept.definition ? 'Has a definition' : 'No definition yet'}</p>
-								</div>
-								<span class="cc-chip cc-chip-yellow shrink-0">Open map <Icon name="chevronRight" class="h-3 w-3" /></span>
-							</a>
-						{/each}
-					</div>
-				</div>
-			</div>
+			<ConceptEntry concept={selectedConcept} {matchingMaps} onclose={closeDetails} />
 		</div>
 	</div>
 {/if}
@@ -292,21 +247,5 @@
 		inset: 0 auto 0 0;
 		width: 5px;
 		background: var(--accent);
-	}
-	.dictionary-note {
-		border: 2px solid var(--memphis-ink);
-		border-left: 6px solid var(--accent);
-		border-radius: 0.75rem;
-		padding: 1rem;
-	}
-	.dictionary-modal-head {
-		border-bottom: 2px solid rgb(20 17 15 / 0.12);
-	}
-	:global(.dark) .dictionary-note {
-		border-color: #475569;
-		border-left-color: var(--accent);
-	}
-	:global(.dark) .dictionary-modal-head {
-		border-color: #334155;
 	}
 </style>

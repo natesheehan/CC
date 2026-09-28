@@ -89,6 +89,43 @@ export async function getAllConcepts() {
 		.all();
 }
 
+// A single dictionary entry, plus every concept across maps that shares its
+// name — used by the /concepts/[id] permalink page.
+export async function getConceptEntry(id: string) {
+	const conceptFields = {
+		id: concepts.id,
+		mapId: concepts.mapId,
+		mapName: maps.name,
+		name: concepts.name,
+		definition: concepts.definition,
+		literatureLink: concepts.literatureLink,
+		example: concepts.example,
+		quizQuestion: concepts.quizQuestion,
+		createdAt: concepts.createdAt,
+		createdByName: creator.name
+	};
+
+	const concept = await db
+		.select(conceptFields)
+		.from(concepts)
+		.innerJoin(maps, eq(concepts.mapId, maps.id))
+		.leftJoin(creator, eq(concepts.createdBy, creator.id))
+		.where(eq(concepts.id, id))
+		.get();
+	if (!concept) return null;
+
+	const matches = await db
+		.select(conceptFields)
+		.from(concepts)
+		.innerJoin(maps, eq(concepts.mapId, maps.id))
+		.leftJoin(creator, eq(concepts.createdBy, creator.id))
+		.where(sql`lower(trim(${concepts.name})) = lower(trim(${concept.name}))`)
+		.orderBy(maps.name)
+		.all();
+
+	return { concept, matches };
+}
+
 export async function getMapRelations(mapId: string) {
 	return await db
 		.select({
