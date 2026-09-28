@@ -35,6 +35,21 @@
 	html.dark {
 		color-scheme: dark;
 	}
+	/* Secondary text greys, as "R G B" channels. Tailwind's text-slate-300..600
+	   read these (see tailwind.config.js), so muted text keeps at least 4.5:1
+	   contrast on the cream, white and navy backgrounds in both themes. */
+	:root {
+		--grey-600: 59 71 88;
+		--grey-500: 74 86 105;
+		--grey-400: 86 99 122;
+		--grey-300: 98 112 136;
+	}
+	html.dark {
+		--grey-600: 213 221 232;
+		--grey-500: 188 199 213;
+		--grey-400: 167 180 197;
+		--grey-300: 149 163 182;
+	}
 	html.dark body {
 		background-color: #0f172a;
 		background-image: radial-gradient(circle, rgb(255 255 255 / 0.06) 1.5px, transparent 1.5px);
@@ -46,8 +61,24 @@
 		scrollbar-width: thin;
 	}
 
+	/* Long-form reading text: stronger than the UI's secondary greys. */
 	.docs-prose {
-		@apply max-w-3xl text-base leading-8 text-slate-600;
+		@apply max-w-3xl text-base leading-8;
+		color: #334155;
+	}
+
+	.dark .docs-prose {
+		color: #e2e8f0;
+	}
+
+	.dark .docs-prose strong,
+	.dark .docs-prose h2,
+	.dark .docs-prose h3 {
+		color: #ffffff;
+	}
+
+	.dark .docs-prose em {
+		color: #e2e8f0;
 	}
 
 	.docs-prose h1 {
@@ -82,6 +113,10 @@
 		background: var(--memphis-cream);
 	}
 
+	.docs-prose blockquote > :first-child {
+		margin-top: 0;
+	}
+
 	.dark .docs-prose blockquote {
 		border-color: #475569;
 		border-left-color: var(--memphis-yellow);
@@ -112,6 +147,23 @@
 	.docs-prose em {
 		@apply text-slate-700;
 	}
+
+	/* Screenshots: an image followed by an italic line is a figure with a caption. */
+	.docs-prose img {
+		@apply mx-auto mt-2 block h-auto max-w-full rounded-xl;
+		max-height: 34rem;
+		border: 2px solid var(--memphis-ink);
+		box-shadow: 4px 4px 0 var(--memphis-ink);
+	}
+
+	.docs-prose p > img + em {
+		@apply mt-3 block text-center text-sm leading-6 text-slate-500;
+	}
+
+	.dark .docs-prose img {
+		border-color: #475569;
+		box-shadow: 4px 4px 0 #0b1220;
+	}
 }
 
 @layer utilities {
@@ -125,10 +177,6 @@
 	.dark .text-slate-900 { color: #f8fafc; }
 	.dark .text-slate-800 { color: #e2e8f0; }
 	.dark .text-slate-700 { color: #cbd5e1; }
-	.dark .text-slate-600 { color: #94a3b8; }
-	.dark .text-slate-500 { color: #94a3b8; }
-	.dark .text-slate-400 { color: #64748b; }
-	.dark .text-slate-300 { color: #64748b; }
 	.dark .bg-blue-50 { background-color: #172554; }
 	.dark .text-blue-700 { color: #93c5fd; }
 	.dark .hover\:bg-slate-50:hover { background-color: #1e293b; }
@@ -601,10 +649,7 @@
 }
 
 .cc-muted {
-	color: #64748b;
-}
-.dark .cc-muted {
-	color: #94a3b8;
+	color: rgb(var(--grey-500));
 }
 
 /* Page hero: cream dotted ground, stripe on top, ink rule underneath. */
@@ -735,10 +780,7 @@
 	font-weight: 700;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
-	color: #64748b;
-}
-.dark .cc-stat-label {
-	color: #94a3b8;
+	color: rgb(var(--grey-500));
 }
 .cc-dot {
 	display: inline-block;

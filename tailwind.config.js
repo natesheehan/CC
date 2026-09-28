@@ -13,6 +13,15 @@ export default {
 				],
 				display: ['"Archivo Black"', 'Inter', 'ui-sans-serif', 'sans-serif']
 			},
+			// Muted text greys follow the theme; values live in src/app.css.
+			textColor: {
+				slate: {
+					300: 'rgb(var(--grey-300) / <alpha-value>)',
+					400: 'rgb(var(--grey-400) / <alpha-value>)',
+					500: 'rgb(var(--grey-500) / <alpha-value>)',
+					600: 'rgb(var(--grey-600) / <alpha-value>)'
+				}
+			},
 			colors: {
 				memphis: {
 					pink: '#ff3d81',

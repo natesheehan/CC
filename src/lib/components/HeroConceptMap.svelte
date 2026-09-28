@@ -342,7 +342,7 @@
 		padding: 0.15rem 0.65rem;
 		font-size: 0.75rem;
 		font-weight: 700;
-		color: #64748b;
+		color: rgb(var(--grey-500));
 		transition:
 			border-color 150ms ease,
 			background-color 150ms ease;
@@ -356,7 +356,7 @@
 		color: var(--memphis-ink);
 	}
 	:global(.dark) .hero-map-tab {
-		color: #94a3b8;
+		color: rgb(var(--grey-500));
 	}
 	:global(.dark) .hero-map-tab[aria-selected='true'] {
 		border-color: var(--memphis-yellow);

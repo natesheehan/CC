@@ -206,7 +206,7 @@
 		font-weight: 700;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: #64748b;
+		color: rgb(var(--grey-500));
 	}
 	.map-stat-dot {
 		display: inline-block;
@@ -273,7 +273,7 @@
 		color: #f8fafc;
 	}
 	:global(.dark) .map-stat-label {
-		color: #94a3b8;
+		color: rgb(var(--grey-500));
 	}
 	:global(.dark) .map-stat-dot,
 	:global(.dark) .map-avatar,
