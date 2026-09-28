@@ -16,3 +16,4 @@ data/*.db-*
 .DS_Store
 *.log
 coverage/
+.wrangler/

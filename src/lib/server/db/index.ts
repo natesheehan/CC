@@ -22,15 +22,21 @@ const explicitUrlProvided = Boolean(process.env.DATABASE_URL || process.env.TURS
 // never be created there. If DATABASE_URL hasn't been configured in this
 // environment, fail immediately with a clear message instead of letting the
 // local-file fallback crash later with a cryptic ENOENT/EROFS from mkdir.
+// Cloudflare Workers/Pages set no env var at runtime, but identify themselves
+// via navigator.userAgent.
+const isCloudflare =
+	typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
 const isServerless = Boolean(
-	process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY
+	process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY || isCloudflare
 );
 
 if (isServerless && !explicitUrlProvided) {
 	throw new Error(
 		'DATABASE_URL is not set. On Vercel (or any serverless platform) this app needs a ' +
 			'hosted libSQL database — a local SQLite file cannot be written to a serverless ' +
-			"filesystem. In your Vercel project, go to Settings → Environment Variables and " +
+			'filesystem. On Cloudflare, add DATABASE_URL and DATABASE_AUTH_TOKEN under the project\'s ' +
+			'Settings → Variables and Secrets. ' +
+			"In your Vercel project, go to Settings → Environment Variables and " +
 			'add DATABASE_URL and DATABASE_AUTH_TOKEN (or TURSO_DATABASE_URL / TURSO_AUTH_TOKEN ' +
 			'if you used the Vercel Turso Marketplace integration) — see the README\'s ' +
 			'"Deploying to Vercel" section. Make sure the variables are enabled for the ' +

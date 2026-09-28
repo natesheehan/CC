@@ -1,0 +1,5 @@
+name = "concept-cartography"
+pages_build_output_dir = ".svelte-kit/cloudflare"
+compatibility_date = "2025-09-01"
+# Needed for process.env (DATABASE_URL etc.) and node:* imports on the Workers runtime.
+compatibility_flags = ["nodejs_compat"]
