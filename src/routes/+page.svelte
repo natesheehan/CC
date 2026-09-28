@@ -24,8 +24,7 @@
 Concept Cartography
 				</h1>
 				<p class="cc-muted mt-5 max-w-lg text-lg leading-relaxed">
-					Collaborative concept maps for classrooms and research groups — define ideas precisely, name how they
-					relate, and argue about the connections together.
+					Collaborative concept maps for classrooms and research groups
 				</p>
 
 				<div class="mt-8 flex flex-wrap items-center gap-3">
