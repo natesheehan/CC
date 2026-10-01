@@ -43,9 +43,6 @@
 	});
 
 	const discussions = $derived(relations.reduce((sum, r) => sum + (r.commentCount ?? 0), 0));
-	const defined = $derived(
-		concepts.length === 0 ? 0 : Math.round((concepts.filter((c) => c.definition?.trim()).length / concepts.length) * 100)
-	);
 
 	// Most-connected concept: the "hub" of the map.
 	const hub = $derived.by(() => {
@@ -123,26 +120,6 @@
 			<p class="map-stat-label">comments</p>
 		</div>
 	</div>
-
-	<!-- Definition coverage ring -->
-	{#if concepts.length > 0}
-		<div class="map-stat" title="{defined}% of concepts have a definition">
-			<svg viewBox="0 0 36 36" class="h-9 w-9 shrink-0 -rotate-90" aria-hidden="true">
-				<circle cx="18" cy="18" r="14" class="map-ring-track" />
-				<circle
-					cx="18"
-					cy="18"
-					r="14"
-					class="map-ring-fill"
-					stroke-dasharray="{(defined / 100) * 88} 88"
-				/>
-			</svg>
-			<div>
-				<p class="map-stat-value">{defined}%</p>
-				<p class="map-stat-label">defined</p>
-			</div>
-		</div>
-	{/if}
 
 	{#if hub}
 		<button type="button" class="map-stat map-stat-button" onclick={() => onSelectConcept(hub.concept.id)} title="Most-connected concept">
@@ -247,18 +224,6 @@
 		background: #fff7e0;
 		color: #f59e0b;
 	}
-	.map-ring-track {
-		fill: none;
-		stroke: #e2e8f0;
-		stroke-width: 5;
-	}
-	.map-ring-fill {
-		fill: none;
-		stroke: var(--memphis-cyan);
-		stroke-width: 5;
-		stroke-linecap: round;
-		transition: stroke-dasharray 600ms ease;
-	}
 	.map-spark-bar {
 		fill: var(--memphis-pink);
 	}
@@ -285,12 +250,7 @@
 		background: #3b2a12;
 		color: #fbbf24;
 	}
-	:global(.dark) .map-ring-track,
 	:global(.dark) .map-spark-empty {
-		stroke: #334155;
 		fill: #334155;
-	}
-	:global(.dark) .map-ring-track {
-		fill: none;
 	}
 </style>

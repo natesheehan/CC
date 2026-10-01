@@ -643,64 +643,185 @@
 			.replace(/"/g, '&quot;');
 	}
 
-	function wrapLabel(name: string, maxLineLen = 14): string[] {
-		if (name.length <= maxLineLen) return [name];
-		const mid = Math.floor(name.length / 2);
-		let splitAt = name.lastIndexOf(' ', mid);
-		if (splitAt <= 0) splitAt = name.indexOf(' ', mid);
-		if (splitAt <= 0) return [name.length > maxLineLen ? name.slice(0, maxLineLen - 1) + '…' : name];
-		const line1 = name.slice(0, splitAt);
-		const line2 = name.slice(splitAt + 1);
-		return [line1, line2.length > maxLineLen ? line2.slice(0, maxLineLen - 1) + '…' : line2];
+	// Greedy word wrap using an approximate average glyph width; good enough
+	// for headline/dek layout without a DOM to measure against.
+	function wrapText(text: string, maxWidth: number, fontSize: number, charWidth = 0.5): string[] {
+		const maxChars = Math.max(8, Math.floor(maxWidth / (fontSize * charWidth)));
+		const lines: string[] = [];
+		let line = '';
+		for (const word of text.split(/\s+/).filter(Boolean)) {
+			if (line && (line + ' ' + word).length > maxChars) {
+				lines.push(line);
+				line = word;
+			} else {
+				line = line ? line + ' ' + word : word;
+			}
+		}
+		if (line) lines.push(line);
+		return lines;
 	}
 
-	function buildExportSvg(): string {
+	type ExportInfo = { title?: string; description?: string | null };
+
+	const SERIF = "Georgia, 'Times New Roman', Times, serif";
+	const SANS = "'Helvetica Neue', Helvetica, Arial, sans-serif";
+	const INK = '#121212';
+	const MUTED = '#727272';
+	const RULE = '#dcdcdc';
+
+	// An editorial, newspaper-graphic style snapshot of the current layout:
+	// headline and dek, a key to the relation types in use, circles sized by
+	// connections, haloed labels, and a source line.
+	function buildExportSvg(info: ExportInfo = {}): string {
 		const nodes = simNodes.filter((n) => n.x != null && n.y != null);
 		if (nodes.length === 0) {
 			return '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="white"/></svg>';
 		}
 
-		const pad = 60;
+		const degree = new Map<string, number>();
+		for (const link of simLinks) {
+			for (const end of [resolveEnd(link.source), resolveEnd(link.target)]) {
+				if (end) degree.set(end.id, (degree.get(end.id) ?? 0) + 1);
+			}
+		}
+		const maxDegree = Math.max(1, ...degree.values());
+		const radiusOf = (id: string) => 4.5 + Math.sqrt((degree.get(id) ?? 0) / maxDegree) * 9;
+		const hubCutoff = maxDegree >= 3 ? Math.ceil(maxDegree * 0.6) : Infinity;
+
+		// Graph bounds, with room for labels beneath each circle.
+		const pad = 70;
 		const xs = nodes.map((n) => n.x!);
 		const ys = nodes.map((n) => n.y!);
-		const minX = Math.min(...xs) - pad;
-		const minY = Math.min(...ys) - pad;
-		const w = Math.max(Math.max(...xs) - minX + pad, 200);
-		const h = Math.max(Math.max(...ys) - minY + pad, 200);
+		const gMinX = Math.min(...xs) - pad;
+		const gMinY = Math.min(...ys) - pad / 2;
+		const gW = Math.max(Math.max(...xs) + pad - gMinX, 200);
+		const gH = Math.max(Math.max(...ys) + pad - gMinY, 160);
 
-		const defs = allTypes
+		const margin = 48;
+		const contentW = Math.max(gW, 640);
+		const W = contentW + margin * 2;
+
+		// --- header ---
+		let y = margin;
+		const header: string[] = [];
+		header.push(`<rect x="${margin}" y="${y}" width="${contentW}" height="2" fill="${INK}" />`);
+		y += 30;
+		header.push(
+			`<text x="${margin}" y="${y}" font-family="${SANS}" font-size="11" font-weight="700" letter-spacing="1.6" fill="${MUTED}">CONCEPT MAP</text>`
+		);
+		y += 14;
+		const titleLines = wrapText(info.title?.trim() || 'Concept map', contentW, 34, 0.52);
+		for (const line of titleLines) {
+			y += 40;
+			header.push(
+				`<text x="${margin}" y="${y}" font-family="${SERIF}" font-size="34" font-weight="700" fill="${INK}">${escapeXml(line)}</text>`
+			);
+		}
+		const dek = info.description?.trim();
+		if (dek) {
+			y += 10;
+			for (const line of wrapText(dek, Math.min(contentW, 680), 17, 0.47)) {
+				y += 25;
+				header.push(`<text x="${margin}" y="${y}" font-family="${SERIF}" font-size="17" fill="#363636">${escapeXml(line)}</text>`);
+			}
+		}
+
+		// --- key ---
+		const typesInUse = allTypes.filter((t) => simLinks.some((l) => l.type === t));
+		y += 30;
+		header.push(`<rect x="${margin}" y="${y}" width="${contentW}" height="1" fill="${RULE}" />`);
+		y += 24;
+		let kx = margin;
+		const keyItems: string[] = [];
+		for (const type of typesInUse) {
+			const meta = metaFor(type);
+			const label = escapeXml(meta.label);
+			const itemW = 30 + meta.label.length * 6.6 + 20;
+			if (kx + itemW > margin + contentW && kx > margin) {
+				kx = margin;
+				y += 22;
+			}
+			const dash = meta.directional ? '' : ' stroke-dasharray="4 3"';
+			keyItems.push(
+				`<line x1="${kx}" y1="${y - 4}" x2="${kx + 22}" y2="${y - 4}" stroke="${meta.color}" stroke-width="2.5"${dash} /><text x="${kx + 30}" y="${y}" font-family="${SANS}" font-size="12" fill="#333">${label}</text>`
+			);
+			kx += itemW;
+		}
+		const sizeNote = `Circle size shows number of connections`;
+		if (kx + 260 > margin + contentW && kx > margin) {
+			kx = margin;
+			y += 22;
+		}
+		keyItems.push(
+			`<circle cx="${kx + 4}" cy="${y - 4}" r="3.5" fill="${INK}" /><circle cx="${kx + 18}" cy="${y - 4}" r="7" fill="${INK}" /><text x="${kx + 32}" y="${y}" font-family="${SANS}" font-size="12" fill="#333">${sizeNote}</text>`
+		);
+		header.push(...keyItems);
+		y += 20;
+
+		// --- graph ---
+		const graphTop = y;
+		const offX = margin + (contentW - gW) / 2 - gMinX;
+		const offY = graphTop - gMinY;
+
+		const defs = typesInUse
 			.map(
 				(type) =>
-					`<marker id="export-arrow-${type}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${metaFor(type).color}" /></marker>`
+					`<marker id="export-arrow-${type}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 1 L 9 5 L 0 9 z" fill="${metaFor(type).color}" /></marker>`
 			)
 			.join('');
 
+		// Pull each curve's ends back to the circle's edge so arrowheads show.
+		const trim = (px: number, py: number, cx: number, cy: number, r: number) => {
+			const dx = px - cx;
+			const dy = py - cy;
+			const d = Math.hypot(dx, dy) || 1;
+			return [px - (dx / d) * r, py - (dy / d) * r];
+		};
+
 		const linksSvg = simLinks
 			.map((link) => {
-				const endpoints = linkEndpoints(link);
-				if (!endpoints) return '';
+				const e = linkEndpoints(link);
+				if (!e) return '';
 				const meta = metaFor(link.type);
+				const [x1, y1] = trim(e.x1, e.y1, e.cx, e.cy, radiusOf(e.source.id) + 3);
+				const [x2, y2] = trim(e.x2, e.y2, e.cx, e.cy, radiusOf(e.target.id) + 3);
+				const path = `M ${x1} ${y1} Q ${e.cx} ${e.cy} ${x2} ${y2}`;
 				const markerEnd =
 					meta.directional || link.direction === 'both' ? ` marker-end="url(#export-arrow-${link.type})"` : '';
 				const markerStart = link.direction === 'both' ? ` marker-start="url(#export-arrow-${link.type})"` : '';
-				const dash = meta.directional ? '' : ' stroke-dasharray="7 5"';
-				return `<path d="${endpoints.path}" fill="none" stroke="white" stroke-width="6" /><path d="${endpoints.path}" fill="none" stroke="${meta.color}" stroke-width="2.5"${dash}${markerEnd}${markerStart} />`;
+				const dash = meta.directional ? '' : ' stroke-dasharray="5 4"';
+				return `<path d="${path}" fill="none" stroke="${meta.color}" stroke-width="1.6" stroke-opacity="0.9" stroke-linecap="round"${dash}${markerEnd}${markerStart} />`;
 			})
 			.join('');
 
 		const nodesSvg = nodes
 			.map((n) => {
-				const lines = wrapLabel(n.name);
-				const lineHeight = 12;
-				const startDy = -((lines.length - 1) * lineHeight) / 2;
+				const r = radiusOf(n.id);
+				const isHub = (degree.get(n.id) ?? 0) >= hubCutoff;
+				const lines = wrapText(n.name, 130, 12, 0.55).slice(0, 3);
 				const tspans = lines
-					.map((line, i) => `<tspan x="0" dy="${i === 0 ? startDy : lineHeight}">${escapeXml(line)}</tspan>`)
+					.map((line, i) => `<tspan x="0" dy="${i === 0 ? 0 : 14}">${escapeXml(line)}</tspan>`)
 					.join('');
-				return `<g transform="translate(${n.x} ${n.y})"><circle r="36" fill="white" stroke="#14110f" stroke-width="2" /><text text-anchor="middle" font-size="11" font-weight="700" font-family="Inter Variable, Inter, system-ui, sans-serif" fill="#14110f">${tspans}</text></g>`;
+				const weight = isHub ? 700 : 400;
+				return `<g transform="translate(${n.x} ${n.y})"><circle r="${r}" fill="${INK}" stroke="white" stroke-width="1.5" /><text y="${r + 14}" text-anchor="middle" font-family="${SANS}" font-size="12" font-weight="${weight}" fill="${INK}" stroke="white" stroke-width="3.5" stroke-linejoin="round" paint-order="stroke">${tspans}</text></g>`;
 			})
 			.join('');
 
-		return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${w} ${h}" width="${w}" height="${h}"><defs>${defs}</defs><rect x="${minX}" y="${minY}" width="${w}" height="${h}" fill="white" />${linksSvg}${nodesSvg}</svg>`;
+		y = graphTop + gH;
+
+		// --- footer ---
+		y += 16;
+		const footer: string[] = [];
+		footer.push(`<rect x="${margin}" y="${y}" width="${contentW}" height="1" fill="${RULE}" />`);
+		y += 22;
+		const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+		footer.push(
+			`<text x="${margin}" y="${y}" font-family="${SANS}" font-size="11" fill="${MUTED}">${nodes.length} concepts · ${simLinks.length} relations</text>`,
+			`<text x="${margin + contentW}" y="${y}" text-anchor="end" font-family="${SANS}" font-size="11" fill="${MUTED}">Source: Concept Cartography · ${escapeXml(date)}</text>`
+		);
+		const H = y + margin - 8;
+
+		return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><defs>${defs}</defs><rect width="${W}" height="${H}" fill="white" />${header.join('')}<g transform="translate(${offX} ${offY})">${linksSvg}${nodesSvg}</g>${footer.join('')}</svg>`;
 	}
 
 	function downloadBlob(blob: Blob, filename: string) {
@@ -714,13 +835,13 @@
 		URL.revokeObjectURL(url);
 	}
 
-	export function exportSVG(filename = 'concept-map.svg') {
-		const svgString = buildExportSvg();
+	export function exportSVG(filename = 'concept-map.svg', info: ExportInfo = {}) {
+		const svgString = buildExportSvg(info);
 		downloadBlob(new Blob([svgString], { type: 'image/svg+xml' }), filename);
 	}
 
-	export async function exportPNG(filename = 'concept-map.png') {
-		const svgString = buildExportSvg();
+	export async function exportPNG(filename = 'concept-map.png', info: ExportInfo = {}) {
+		const svgString = buildExportSvg(info);
 		const svgUrl = URL.createObjectURL(new Blob([svgString], { type: 'image/svg+xml' }));
 		try {
 			const img = new Image();
@@ -730,7 +851,9 @@
 				img.src = svgUrl;
 			});
 
-			const scale = 2; // export at 2x for a crisp, print-friendly image
+			// Up to 3x for a crisp, print-friendly image, capped so huge maps
+			// stay within browser canvas limits.
+			const scale = Math.min(3, 12000 / Math.max(img.width, img.height));
 			const canvas = document.createElement('canvas');
 			canvas.width = Math.max(1, Math.round(img.width * scale));
 			canvas.height = Math.max(1, Math.round(img.height * scale));

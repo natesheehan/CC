@@ -42,11 +42,6 @@
 
 	const letters = $derived(grouped.map(([letter]) => letter));
 	const mapCount = $derived(new Set(data.concepts.map((c) => c.mapId)).size);
-	const definedPct = $derived(
-		data.concepts.length === 0
-			? 0
-			: Math.round((data.concepts.filter((c) => c.definition?.trim()).length / data.concepts.length) * 100)
-	);
 
 	// Each letter group gets its own accent from the palette.
 	const ACCENTS = ['var(--memphis-pink)', 'var(--memphis-cyan)', 'var(--memphis-yellow)', 'var(--memphis-purple)'];
@@ -95,13 +90,6 @@
 				<div>
 					<p class="cc-stat-value">{mapCount}</p>
 					<p class="cc-stat-label">maps</p>
-				</div>
-			</div>
-			<div class="cc-stat">
-				<span class="cc-dot" style="--dot: var(--memphis-yellow)"></span>
-				<div>
-					<p class="cc-stat-value">{definedPct}%</p>
-					<p class="cc-stat-label">defined</p>
 				</div>
 			</div>
 		</div>

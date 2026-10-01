@@ -393,13 +393,72 @@
 	}
 
 	// --- export -------------------------------------------------------------
-	function exportAs(kind: 'svg' | 'png') {
+	function exportAs(kind: 'svg' | 'png' | 'json') {
 		const filename = `${data.map.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'concept-map'}.${kind}`;
+		const info = { title: data.map.name, description: data.map.description };
 		if (kind === 'svg') {
-			graphRef?.exportSVG(filename);
+			graphRef?.exportSVG(filename, info);
+		} else if (kind === 'png') {
+			graphRef?.exportPNG(filename, info);
 		} else {
-			graphRef?.exportPNG(filename);
+			downloadJson(filename);
 		}
+	}
+
+	// The full map (not just what's currently filtered on screen), without
+	// internal user ids.
+	function downloadJson(filename: string) {
+		const names = new Map(data.concepts.map((c) => [c.id, c.name]));
+		const payload = {
+			map: {
+				id: data.map.id,
+				name: data.map.name,
+				description: data.map.description ?? null,
+				createdAt: data.map.createdAt,
+				updatedAt: data.map.updatedAt
+			},
+			exportedAt: new Date().toISOString(),
+			relationTypes: Object.entries(relationMeta).map(([key, meta]) => ({
+				key,
+				label: meta.label,
+				phrase: meta.phrase,
+				color: meta.color,
+				directional: meta.directional
+			})),
+			concepts: data.concepts.map((c) => ({
+				id: c.id,
+				name: c.name,
+				definition: c.definition,
+				example: c.example,
+				literatureLink: c.literatureLink,
+				quizQuestion: c.quizQuestion,
+				x: c.x,
+				y: c.y,
+				createdBy: c.createdByName,
+				createdAt: c.createdAt,
+				updatedAt: c.updatedAt
+			})),
+			relations: data.relations.map((r) => ({
+				id: r.id,
+				sourceId: r.sourceId,
+				source: names.get(r.sourceId) ?? null,
+				targetId: r.targetId,
+				target: names.get(r.targetId) ?? null,
+				type: r.type,
+				direction: r.direction,
+				description: r.description,
+				createdBy: r.createdByName ?? null,
+				createdAt: r.createdAt
+			}))
+		};
+		const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		URL.revokeObjectURL(url);
 	}
 
 	// --- full screen --------------------------------------------------------
@@ -473,7 +532,7 @@
 		| 'addConcept' | 'addLink' | 'search'
 		| 'setCenter' | 'arrange' | 'clearCenter' | 'relayout'
 		| 'zoomIn' | 'zoomOut' | 'fit' | 'rotate' | 'resetView' | 'fullscreen' | 'legend' | 'tools'
-		| 'relationTypes' | 'activity' | 'exportPng' | 'exportSvg' | 'rename' | 'describe' | 'deleteMap';
+		| 'relationTypes' | 'activity' | 'exportPng' | 'exportSvg' | 'exportJson' | 'rename' | 'describe' | 'deleteMap';
 
 	const actions: Record<ActionId, Action> = $derived({
 		addConcept: {
@@ -554,6 +613,7 @@
 		},
 		exportPng: { label: 'Export as PNG', icon: 'image', disabled: !hasConcepts, run: () => exportAs('png') },
 		exportSvg: { label: 'Export as SVG', icon: 'code', disabled: !hasConcepts, run: () => exportAs('svg') },
+		exportJson: { label: 'Download data (JSON)', icon: 'download', disabled: !hasConcepts, run: () => exportAs('json') },
 		rename: { label: 'Rename map', icon: 'edit', run: startEditingMapName },
 		describe: { label: 'Edit description', icon: 'edit', run: startEditingMapDescription },
 		deleteMap: {
@@ -568,7 +628,7 @@
 	const TOOL_GROUPS: { title: string; ids: ActionId[] }[] = [
 		{ title: 'Create', ids: ['addConcept', 'addLink'] },
 		{ title: 'Layout', ids: ['setCenter', 'arrange', 'clearCenter', 'relayout'] },
-		{ title: 'Map', ids: ['relationTypes', 'activity', 'exportPng', 'exportSvg'] }
+		{ title: 'Map', ids: ['relationTypes', 'activity', 'exportPng', 'exportSvg', 'exportJson'] }
 	];
 
 	// --- keyboard shortcuts --------------------------------------------------
@@ -743,6 +803,7 @@
 					item('activity'),
 					item('exportPng'),
 					item('exportSvg'),
+					item('exportJson'),
 					item('rename'),
 					item('describe'),
 					...(isOwner ? [item('deleteMap')] : [])
