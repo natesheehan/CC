@@ -17,8 +17,11 @@
 		onDeleteRelation,
 		onEditRelation,
 		onOpenComments,
-		livePeers = []
+		livePeers = [],
+		readOnly = false
 	}: {
+		/** View-only visitors: hide every editing control. */
+		readOnly?: boolean;
 		/** People live on the map who are on this concept right now. */
 		livePeers?: { clientId: string; name: string; color: string; editing: boolean }[];
 		concept: ClientConcept;
@@ -207,9 +210,11 @@
 				<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					Related concepts ({outgoing.length + incoming.length})
 				</h3>
-				<button onclick={onAddRelation} class="text-xs font-medium text-blue-600 hover:underline">
-					+ Add link
-				</button>
+				{#if !readOnly}
+					<button onclick={onAddRelation} class="text-xs font-medium text-blue-600 hover:underline">
+						+ Add link
+					</button>
+				{/if}
 			</div>
 
 			{#if groupedRelations.length === 0}
@@ -269,7 +274,7 @@
 													💬{row.rel.commentCount ? row.rel.commentCount : ''}
 												</button>
 											{/if}
-											{#if onEditRelation}
+											{#if onEditRelation && !readOnly}
 												<button
 													onclick={() => onEditRelation?.(row.rel)}
 													class="rounded px-1 text-xs text-slate-400 hover:text-blue-600"
@@ -278,13 +283,15 @@
 													✎
 												</button>
 											{/if}
-											<button
-												onclick={() => onDeleteRelation(row.rel.id)}
-												class="rounded px-1 text-xs text-slate-300 hover:text-red-600"
-												aria-label="Remove link"
-											>
-												✕
-											</button>
+											{#if !readOnly}
+												<button
+													onclick={() => onDeleteRelation(row.rel.id)}
+													class="rounded px-1 text-xs text-slate-300 hover:text-red-600"
+													aria-label="Remove link"
+												>
+													✕
+												</button>
+											{/if}
 										</div>
 									</li>
 								{/each}
@@ -296,6 +303,7 @@
 		</section>
 	</div>
 
+	{#if !readOnly}
 	<div class="flex items-center gap-2 border-t border-slate-100 p-4">
 		<button
 			onclick={onEdit}
@@ -325,5 +333,6 @@
 			</button>
 		{/if}
 	</div>
+	{/if}
 </aside>
 

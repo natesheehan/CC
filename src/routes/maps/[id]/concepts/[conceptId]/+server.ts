@@ -1,4 +1,5 @@
 import { json, error } from '@sveltejs/kit';
+import { requireMapEdit } from '$lib/server/access';
 import { eq, and } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { concepts, maps, users } from '$lib/server/db/schema';
@@ -15,6 +16,7 @@ const CONTENT_FIELDS = ['name', 'definition', 'literatureLink', 'example', 'quiz
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await requireMapEdit(params.id, locals.user.id);
 
 	const body = (await request.json()) as Record<string, unknown>;
 
@@ -105,6 +107,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await requireMapEdit(params.id, locals.user.id);
 
 	const existing = await db
 		.select()

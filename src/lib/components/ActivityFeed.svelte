@@ -11,7 +11,13 @@
 		updated_concept: '✏️',
 		deleted_concept: '🗑️',
 		created_relation: '🔗',
-		deleted_relation: '✂️'
+		deleted_relation: '✂️',
+		changed_visibility: '🔒',
+		invited_member: '✉️',
+		joined_map: '👋',
+		removed_member: '🚪',
+		saved_version: '📌',
+		restored_version: '⏪'
 	};
 </script>
 

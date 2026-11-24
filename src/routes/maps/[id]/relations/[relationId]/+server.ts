@@ -1,4 +1,5 @@
 import { json, error } from '@sveltejs/kit';
+import { requireMapEdit } from '$lib/server/access';
 import { eq, and } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { concepts, conceptRelations, relationTypes, maps, users } from '$lib/server/db/schema';
@@ -14,6 +15,7 @@ export const config: Config = LIGHT_FUNCTION_CONFIG;
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await requireMapEdit(params.id, locals.user.id);
 	await rateLimitUserWrite(locals.user.id);
 
 	const existing = await db
@@ -94,6 +96,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await requireMapEdit(params.id, locals.user.id);
 	await rateLimitUserWrite(locals.user.id); 
 
 	const existing = await db

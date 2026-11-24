@@ -7,7 +7,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		throw redirect(303, `/login?redirectTo=${encodeURIComponent(url.pathname)}`);
 	}
 
-	const rawConcepts = await getAllConcepts();
+	const rawConcepts = await getAllConcepts(locals.user.id);
 
 	return {
 		concepts: rawConcepts.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() }))

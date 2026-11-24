@@ -1,4 +1,5 @@
 import { json, error } from '@sveltejs/kit';
+import { requireMapEdit } from '$lib/server/access';
 import { nanoid } from 'nanoid';
 import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
@@ -17,6 +18,7 @@ export const config: Config = LIGHT_FUNCTION_CONFIG;
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await requireMapEdit(params.id, locals.user.id);
 	await rateLimitUserWrite(locals.user.id); 
 
 	const map = await getMap(params.id);

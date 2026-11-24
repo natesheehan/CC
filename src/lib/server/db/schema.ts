@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core';
 
 // ---------------------------------------------------------------------------
 // Users are identified by a chosen display name only (no password) per the
@@ -29,7 +29,48 @@ export const maps = sqliteTable('maps', {
 		.notNull()
 		.references(() => users.id),
 	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+	// Who can see / edit the map — see $lib/shared/access. Maps created before
+	// sharing existed default to 'public_edit' (anyone can edit).
+	visibility: text('visibility').notNull().default('public_edit'),
+	// Secret for the "anyone with this link can edit" invite. NULL = disabled.
+	inviteToken: text('invite_token')
+});
+
+// People explicitly invited to a map. Members can always view and edit it,
+// whatever its visibility; the creator is implicitly a member.
+export const mapMembers = sqliteTable(
+	'map_members',
+	{
+		mapId: text('map_id')
+			.notNull()
+			.references(() => maps.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		addedBy: text('added_by').references(() => users.id),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
+	},
+	(t) => [primaryKey({ columns: [t.mapId, t.userId] })]
+);
+
+// Saved snapshots of a map's content (concepts, links, relation types, name
+// and description) as JSON, so it can be previewed or rolled back to.
+export const mapVersions = sqliteTable('map_versions', {
+	id: text('id').primaryKey(),
+	mapId: text('map_id')
+		.notNull()
+		.references(() => maps.id, { onDelete: 'cascade' }),
+	label: text('label').notNull(),
+	// 'manual' = saved by someone; 'auto' = taken automatically (e.g. before a restore).
+	kind: text('kind').notNull().default('manual'),
+	conceptCount: integer('concept_count').notNull(),
+	relationCount: integer('relation_count').notNull(),
+	snapshot: text('snapshot').notNull(),
+	createdBy: text('created_by')
+		.notNull()
+		.references(() => users.id),
+	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
 });
 
 export const concepts = sqliteTable('concepts', {
@@ -174,3 +215,5 @@ export type RelationComment = typeof relationComments.$inferSelect;
 export type RateLimit = typeof rateLimits.$inferSelect;
 export type ActivityEntry = typeof activityLog.$inferSelect;
 export type MapPresence = typeof mapPresence.$inferSelect;
+export type MapMember = typeof mapMembers.$inferSelect;
+export type MapVersion = typeof mapVersions.$inferSelect;

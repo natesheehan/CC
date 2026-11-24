@@ -1,6 +1,7 @@
-import { error, redirect } from '@sveltejs/kit';
-import { getMap, getMapConcepts, getMapRelations, getMapRelationTypes } from '$lib/server/queries';
+import { redirect } from '@sveltejs/kit';
+import { getMapConcepts, getMapRelations, getMapRelationTypes } from '$lib/server/queries';
 import { getMapActivity } from '$lib/server/activity';
+import { requireMapView } from '$lib/server/access';
 import type { PageServerLoad } from './$types';
 import type { ClientActivityEntry, ClientConcept, ClientRelation } from '$lib/shared/types';
 import type { CustomRelationType } from '$lib/shared/relations';
@@ -11,8 +12,8 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 		throw redirect(303, `/login?redirectTo=${encodeURIComponent(url.pathname)}`);
 	}
 
-	const map = await getMap(params.id);
-	if (!map) throw error(404, 'Map not found');
+	// 404 for private maps you aren't invited to, so they stay undiscoverable.
+	const { map, access } = await requireMapView(params.id, locals.user.id);
 
 	const [rawConcepts, rawRelations, rawActivity, rawRelationTypes] = await Promise.all([
 		getMapConcepts(params.id),
@@ -47,10 +48,14 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 
 	return {
 		map: {
-			...map,
+			id: map.id,
+			name: map.name,
+			description: map.description,
+			createdBy: map.createdBy,
 			createdAt: map.createdAt.toISOString(),
 			updatedAt: map.updatedAt.toISOString()
 		},
+		access,
 		concepts,
 		relations,
 		relationTypes,

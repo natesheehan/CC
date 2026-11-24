@@ -17,6 +17,10 @@
 	import MapContextMenu, { type MenuItem, type MenuSection } from '$lib/components/MapContextMenu.svelte';
 	import LivePresence from '$lib/components/LivePresence.svelte';
 	import LiveToasts, { type LiveToast } from '$lib/components/LiveToasts.svelte';
+	import ShareDialog from '$lib/components/ShareDialog.svelte';
+	import VersionsPanel from '$lib/components/VersionsPanel.svelte';
+	import { VISIBILITY_META } from '$lib/shared/access';
+	import type { CustomRelationType } from '$lib/shared/relations';
 	import { LiveSession, describePeer } from '$lib/client/live.svelte';
 	import { RELATION_TYPES, mergeRelationMeta } from '$lib/shared/relations';
 	import type {
@@ -25,17 +29,42 @@
 		ClientConcept,
 		ClientRelation,
 		ClientRelationComment,
-		LivePeer
+		ClientMapVersion,
+		LivePeer,
+		MapSnapshot
 	} from '$lib/shared/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
+	// --- access & version preview ---------------------------------------------
+	// While previewing a saved version the canvas shows that snapshot instead
+	// of the live map, read-only. Everything that displays the map reads the
+	// view* values below; mutations and live bookkeeping keep using `data`.
+	type Preview = {
+		version: ClientMapVersion;
+		concepts: ClientConcept[];
+		relations: ClientRelation[];
+		relationTypes: CustomRelationType[];
+	};
+	let preview = $state<Preview | null>(null);
+	const viewConcepts = $derived(preview?.concepts ?? data.concepts);
+	const viewRelations = $derived(preview?.relations ?? data.relations);
+	const viewRelationTypes = $derived(preview?.relationTypes ?? data.relationTypes);
+	/** Server-granted: may this person edit the live map? */
+	const canEditMap = $derived(data.access.canEdit);
+	/** May they edit what's on screen right now (never a preview)? */
+	const editable = $derived(canEditMap && !preview);
+	let shareOpen = $state(false);
+	let versionsRefreshKey = $state(0);
+	/** Bumped to remount the canvas so it adopts server positions wholesale (after a restore). */
+	let canvasEpoch = $state(0);
+
 	let selectedConceptId: string | null = $state(null);
 	let centralConceptId: string | null = $state(null);
-	let rightPanel = $state<'none' | 'concept' | 'activity'>('none');
+	let rightPanel = $state<'none' | 'concept' | 'activity' | 'versions'>('none');
 	let showLegend = $state(true);
-	const relationMeta = $derived(mergeRelationMeta(data.relationTypes));
+	const relationMeta = $derived(mergeRelationMeta(viewRelationTypes));
 	let visibleRelationTypes = $state<Set<string>>(new Set(RELATION_TYPES));
 
 	let conceptModal: {
@@ -51,16 +80,16 @@
 
 	let graphRef: GraphCanvas | undefined = $state();
 
-	const selectedConcept = $derived(data.concepts.find((c) => c.id === selectedConceptId) ?? null);
-	const centralConcept = $derived(data.concepts.find((c) => c.id === centralConceptId) ?? null);
-	const visibleRelations = $derived(data.relations.filter((relation) => visibleRelationTypes.has(relation.type)));
+	const selectedConcept = $derived(viewConcepts.find((c) => c.id === selectedConceptId) ?? null);
+	const centralConcept = $derived(viewConcepts.find((c) => c.id === centralConceptId) ?? null);
+	const visibleRelations = $derived(viewRelations.filter((relation) => visibleRelationTypes.has(relation.type)));
 
 	// Legend entries, split into built-in vs. map-specific ("Community
 	// labels") types and ordered within each group by how many relations
 	// currently use that type (most-used first).
 	const relationTypeCounts = $derived.by(() => {
 		const counts = new Map<string, number>();
-		for (const r of data.relations) counts.set(r.type, (counts.get(r.type) ?? 0) + 1);
+		for (const r of viewRelations) counts.set(r.type, (counts.get(r.type) ?? 0) + 1);
 		return counts;
 	});
 	const builtInLegend = $derived(
@@ -69,7 +98,7 @@
 		)
 	);
 	const communityLegend = $derived(
-		data.relationTypes
+		viewRelationTypes
 			.map((t) => ({ key: t.key, meta: relationMeta[t.key], count: relationTypeCounts.get(t.key) ?? 0 }))
 			.sort((a, b) => b.count - a.count)
 	);
@@ -78,7 +107,7 @@
 	$effect(() => {
 		const known = new Set(visibleRelationTypes);
 		let changed = false;
-		for (const t of data.relationTypes) {
+		for (const t of viewRelationTypes) {
 			if (!known.has(t.key)) {
 				known.add(t.key);
 				changed = true;
@@ -150,12 +179,12 @@
 		const conceptParam = page.url.searchParams.get('concept');
 		const relationParam = page.url.searchParams.get('relation');
 		untrack(() => {
-			if (conceptParam && data.concepts.some((c) => c.id === conceptParam) && selectedConceptId !== conceptParam) {
+			if (conceptParam && viewConcepts.some((c) => c.id === conceptParam) && selectedConceptId !== conceptParam) {
 				selectedConceptId = conceptParam;
 				rightPanel = 'concept';
 			}
 			if (relationParam && commentsRelation?.id !== relationParam) {
-				const rel = data.relations.find((r) => r.id === relationParam);
+				const rel = viewRelations.find((r) => r.id === relationParam);
 				if (rel) openComments(rel);
 			}
 		});
@@ -325,6 +354,8 @@
 	});
 
 	function moveConcept(id: string, x: number, y: number) {
+		// View-only visitors and previews can rearrange the screen, but it isn't saved.
+		if (!editable) return;
 		const rx = Math.round(x);
 		const ry = Math.round(y);
 		const stored = persistedPositions.get(id);
@@ -471,7 +502,7 @@
 	// The full map (not just what's currently filtered on screen), without
 	// internal user ids.
 	function downloadJson(filename: string) {
-		const names = new Map(data.concepts.map((c) => [c.id, c.name]));
+		const names = new Map(viewConcepts.map((c) => [c.id, c.name]));
 		const payload = {
 			map: {
 				id: data.map.id,
@@ -488,7 +519,7 @@
 				color: meta.color,
 				directional: meta.directional
 			})),
-			concepts: data.concepts.map((c) => ({
+			concepts: viewConcepts.map((c) => ({
 				id: c.id,
 				name: c.name,
 				definition: c.definition,
@@ -501,7 +532,7 @@
 				createdAt: c.createdAt,
 				updatedAt: c.updatedAt
 			})),
-			relations: data.relations.map((r) => ({
+			relations: viewRelations.map((r) => ({
 				id: r.id,
 				sourceId: r.sourceId,
 				source: names.get(r.sourceId) ?? null,
@@ -514,6 +545,10 @@
 				createdAt: r.createdAt
 			}))
 		};
+		downloadObject(filename, payload);
+	}
+
+	function downloadObject(filename: string, payload: unknown) {
 		const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
 		const a = document.createElement('a');
 		a.href = url;
@@ -522,6 +557,91 @@
 		a.click();
 		a.remove();
 		URL.revokeObjectURL(url);
+	}
+
+	// --- versions ------------------------------------------------------------
+	async function fetchVersion(v: ClientMapVersion): Promise<MapSnapshot> {
+		const res = await api(`/maps/${data.map.id}/versions/${v.id}`);
+		return res.snapshot as MapSnapshot;
+	}
+
+	async function previewVersion(v: ClientMapVersion | null) {
+		if (!v) {
+			preview = null;
+			return;
+		}
+		const snap = await fetchVersion(v);
+		const iso = (ms: number | null) => (ms == null ? null : new Date(ms).toISOString());
+		const names = new Map<string, { name: string; color: string }>();
+		for (const c of data.concepts) {
+			if (c.createdByName) names.set(c.createdById, { name: c.createdByName, color: c.createdByColor ?? '#94a3b8' });
+			if (c.updatedByName) names.set(c.updatedById, { name: c.updatedByName, color: c.updatedByColor ?? '#94a3b8' });
+		}
+		selectedConceptId = null;
+		centralConceptId = null;
+		if (rightPanel === 'concept') rightPanel = 'versions';
+		preview = {
+			version: v,
+			concepts: snap.concepts.map((c) => ({
+				...c,
+				mapId: data.map.id,
+				createdAt: iso(c.createdAt)!,
+				updatedAt: iso(c.updatedAt)!,
+				createdById: c.createdBy,
+				createdByName: names.get(c.createdBy)?.name ?? null,
+				createdByColor: names.get(c.createdBy)?.color ?? null,
+				updatedById: c.updatedBy,
+				updatedByName: names.get(c.updatedBy)?.name ?? null,
+				updatedByColor: names.get(c.updatedBy)?.color ?? null
+			})),
+			relations: snap.relations.map((r) => ({
+				id: r.id,
+				mapId: data.map.id,
+				sourceId: r.sourceId,
+				targetId: r.targetId,
+				type: r.type,
+				direction: r.direction === 'both' ? 'both' : 'forward',
+				description: r.description,
+				createdById: r.createdBy,
+				createdByName: names.get(r.createdBy)?.name ?? null,
+				createdAt: iso(r.createdAt)!,
+				updatedById: r.updatedBy,
+				updatedAt: iso(r.updatedAt)
+			})),
+			relationTypes: snap.relationTypes.map((t) => ({
+				id: t.id,
+				mapId: data.map.id,
+				key: t.key,
+				label: t.label,
+				phrase: t.phrase,
+				color: t.color,
+				directional: t.directional,
+				description: t.description,
+				createdById: t.createdBy,
+				createdAt: iso(t.createdAt)!
+			}))
+		};
+	}
+
+	async function restoreVersion(v: ClientMapVersion) {
+		await api(`/maps/${data.map.id}/versions/${v.id}/restore`, { method: 'POST' });
+		preview = null;
+		selectedConceptId = null;
+		await invalidateAll();
+		canvasEpoch++;
+		versionsRefreshKey++;
+	}
+
+	async function downloadVersion(v: ClientMapVersion) {
+		const snapshot = await fetchVersion(v);
+		const slug = `${data.map.name}-${v.label}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase().replace(/^-|-$/g, '');
+		downloadObject(`${slug || 'concept-map-version'}.json`, {
+			map: { id: data.map.id, name: snapshot.name, description: snapshot.description },
+			version: { id: v.id, label: v.label, savedBy: v.createdByName, savedAt: v.createdAt },
+			concepts: snapshot.concepts,
+			relations: snapshot.relations,
+			relationTypes: snapshot.relationTypes
+		});
 	}
 
 	// --- full screen --------------------------------------------------------
@@ -617,9 +737,17 @@
 	});
 
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+	/** A restore moved everything: rebuild the canvas once the new data is in. */
+	let remountAfterRefresh = false;
 	function scheduleRefresh() {
 		clearTimeout(refreshTimer);
-		refreshTimer = setTimeout(() => invalidateAll(), 200);
+		refreshTimer = setTimeout(async () => {
+			await invalidateAll();
+			if (remountAfterRefresh) {
+				remountAfterRefresh = false;
+				canvasEpoch++;
+			}
+		}, 200);
 	}
 
 	function handleRemoteActivity(entries: ClientActivityEntry[]) {
@@ -630,6 +758,8 @@
 		if (entries.some((e) => e.userId !== myId || !known.has(e.id))) scheduleRefresh();
 		for (const e of entries) {
 			if (e.action === 'commented_relation' && commentsRelation?.id === e.entityId) commentsRefreshKey++;
+			if (e.entityType === 'version') versionsRefreshKey++;
+			if (e.action === 'restored_version' && !known.has(e.id)) remountAfterRefresh = true;
 			if (e.userId !== myId) pushToast(e);
 		}
 	}
@@ -643,7 +773,7 @@
 			action = {
 				label: 'Open',
 				run: () => {
-					const rel = data.relations.find((r) => r.id === e.entityId);
+					const rel = viewRelations.find((r) => r.id === e.entityId);
 					if (rel) openComments(rel);
 				}
 			};
@@ -658,10 +788,10 @@
 	}
 
 	function conceptName(id: string) {
-		return data.concepts.find((c) => c.id === id)?.name;
+		return viewConcepts.find((c) => c.id === id)?.name;
 	}
 	function relationName(id: string) {
-		const rel = data.relations.find((r) => r.id === id);
+		const rel = viewRelations.find((r) => r.id === id);
 		if (!rel) return undefined;
 		return `${conceptName(rel.sourceId) ?? '?'} → ${conceptName(rel.targetId) ?? '?'}`;
 	}
@@ -671,7 +801,7 @@
 	function peerNode(peer: LivePeer): string | null {
 		const editingId = peer.editing?.startsWith('concept:') ? peer.editing.slice(8) : null;
 		const id = editingId ?? peer.focusId;
-		return id && data.concepts.some((c) => c.id === id) ? id : null;
+		return id && viewConcepts.some((c) => c.id === id) ? id : null;
 	}
 
 	function goToPeer(peer: LivePeer) {
@@ -697,7 +827,7 @@
 		}
 		untrack(() => {
 			const nodeId = peerNode(peer);
-			const node = nodeId ? data.concepts.find((c) => c.id === nodeId) : null;
+			const node = nodeId ? viewConcepts.find((c) => c.id === nodeId) : null;
 			const target =
 				node && node.x != null && node.y != null ? { x: node.x, y: node.y } : peer.cursor ? { ...peer.cursor } : null;
 			if (!target) return;
@@ -719,7 +849,7 @@
 	const conceptNotice = $derived.by(() => {
 		if (conceptModal?.mode !== 'edit' || !conceptModal.initial) return null;
 		const id = conceptModal.initial.id;
-		const current = data.concepts.find((c) => c.id === id);
+		const current = viewConcepts.find((c) => c.id === id);
 		if (!current) return 'Someone deleted this concept while you were editing it.';
 		if (current.updatedAt !== conceptModal.initial.updatedAt && current.updatedById !== data.user?.id) {
 			return `${current.updatedByName ?? 'Someone'} saved changes to this concept while you were editing — saving will overwrite them.`;
@@ -732,7 +862,7 @@
 	const relationNotice = $derived.by(() => {
 		if (relationModal?.mode !== 'edit' || !relationModal.initial) return null;
 		const id = relationModal.initial.id;
-		const current = data.relations.find((r) => r.id === id);
+		const current = viewRelations.find((r) => r.id === id);
 		if (!current) return 'Someone deleted this link while you were editing it.';
 		if (current.updatedAt !== relationModal.initial.updatedAt && current.updatedById !== data.user?.id) {
 			return `${current.updatedByName ?? 'Someone'} saved changes to this link while you were editing — saving will overwrite them.`;
@@ -761,13 +891,13 @@
 	let helpOpen = $state(false);
 	let searchRef: SearchBar | undefined = $state();
 	const isOwner = $derived(data.map.createdBy === page.data.user?.id);
-	const hasConcepts = $derived(data.concepts.length > 0);
+	const hasConcepts = $derived(viewConcepts.length > 0);
 	// The map row only stores the creator's id, so find their name wherever
 	// else they appear.
 	const creatorName = $derived(
 		(isOwner ? page.data.user?.name : null) ??
 			data.activity.find((a) => a.userId === data.map.createdBy)?.userName ??
-			data.concepts.find((c) => c.createdById === data.map.createdBy)?.createdByName ??
+			viewConcepts.find((c) => c.createdById === data.map.createdBy)?.createdByName ??
 			null
 	);
 
@@ -786,20 +916,21 @@
 		| 'setCenter' | 'arrange' | 'clearCenter' | 'relayout'
 		| 'zoomIn' | 'zoomOut' | 'fit' | 'rotate' | 'resetView' | 'fullscreen' | 'legend' | 'tools'
 		| 'cursors' | 'stopFollowing'
-		| 'relationTypes' | 'activity' | 'exportPng' | 'exportSvg' | 'exportJson' | 'rename' | 'describe' | 'deleteMap';
+		| 'share' | 'versions' | 'relationTypes' | 'activity' | 'exportPng' | 'exportSvg' | 'exportJson' | 'rename' | 'describe' | 'deleteMap';
 
 	const actions: Record<ActionId, Action> = $derived({
 		addConcept: {
 			label: 'Add concept',
 			icon: 'plus',
 			shortcut: 'N',
+			disabled: !editable,
 			run: () => (conceptModal = { mode: 'create' })
 		},
 		addLink: {
 			label: 'Add link',
 			icon: 'link',
 			shortcut: 'L',
-			disabled: data.concepts.length < 2,
+			disabled: !editable || viewConcepts.length < 2,
 			run: () => (relationModal = { mode: 'create', sourceId: selectedConceptId ?? undefined })
 		},
 		search: {
@@ -870,7 +1001,14 @@
 			disabled: !followedPeer,
 			run: () => (followingClientId = null)
 		},
-		relationTypes: { label: 'Relation types', icon: 'tag', run: () => (relationTypeManagerOpen = true) },
+		share: { label: 'Share & access', icon: 'share', disabled: !!preview, run: () => (shareOpen = true) },
+		versions: {
+			label: 'Versions',
+			icon: 'history',
+			active: rightPanel === 'versions',
+			run: () => (rightPanel = rightPanel === 'versions' ? 'none' : 'versions')
+		},
+		relationTypes: { label: 'Relation types', icon: 'tag', disabled: !editable, run: () => (relationTypeManagerOpen = true) },
 		activity: {
 			label: 'Activity feed',
 			icon: 'clock',
@@ -880,8 +1018,8 @@
 		exportPng: { label: 'Export as PNG', icon: 'image', disabled: !hasConcepts, run: () => exportAs('png') },
 		exportSvg: { label: 'Export as SVG', icon: 'code', disabled: !hasConcepts, run: () => exportAs('svg') },
 		exportJson: { label: 'Download data (JSON)', icon: 'download', disabled: !hasConcepts, run: () => exportAs('json') },
-		rename: { label: 'Rename map', icon: 'edit', run: startEditingMapName },
-		describe: { label: 'Edit description', icon: 'edit', run: startEditingMapDescription },
+		rename: { label: 'Rename map', icon: 'edit', disabled: !editable, run: startEditingMapName },
+		describe: { label: 'Edit description', icon: 'edit', disabled: !editable, run: startEditingMapDescription },
 		deleteMap: {
 			label: 'Delete map',
 			icon: 'trash',
@@ -894,13 +1032,19 @@
 	const TOOL_GROUPS: { title: string; ids: ActionId[] }[] = [
 		{ title: 'Create', ids: ['addConcept', 'addLink'] },
 		{ title: 'Layout', ids: ['setCenter', 'arrange', 'clearCenter', 'relayout'] },
-		{ title: 'Map', ids: ['relationTypes', 'activity', 'exportPng', 'exportSvg', 'exportJson'] },
+		{ title: 'Map', ids: ['share', 'versions', 'relationTypes', 'activity', 'exportPng', 'exportSvg', 'exportJson'] },
 		{ title: 'Live', ids: ['cursors', 'stopFollowing'] }
 	];
 
 	// --- keyboard shortcuts --------------------------------------------------
 	const anyModalOpen = $derived(
-		!!conceptModal || !!relationModal || relationTypeManagerOpen || !!commentsRelation || confirmDeleteMap || helpOpen
+		!!conceptModal ||
+			!!relationModal ||
+			relationTypeManagerOpen ||
+			!!commentsRelation ||
+			confirmDeleteMap ||
+			helpOpen ||
+			shareOpen
 	);
 
 	function onWindowKeydown(e: KeyboardEvent) {
@@ -910,7 +1054,8 @@
 		if (e.key === 'Escape') {
 			// Peel back one layer at a time: follow mode, fallback full
 			// screen, then the center highlight, then the selection.
-			if (followingClientId) followingClientId = null;
+			if (preview) preview = null;
+			else if (followingClientId) followingClientId = null;
 			else if (pseudoFullscreen) pseudoFullscreen = false;
 			else if (centralConceptId) centralConceptId = null;
 			else clearSelection();
@@ -956,7 +1101,7 @@
 		const sections: MenuSection[] = [];
 
 		if (target.kind === 'node' && target.id) {
-			const concept = data.concepts.find((c) => c.id === target.id);
+			const concept = viewConcepts.find((c) => c.id === target.id);
 			if (concept) {
 				const id = concept.id;
 				const isCentral = centralConceptId === id;
@@ -966,11 +1111,16 @@
 					pinned: true,
 					items: [
 						{ label: 'Open details', icon: 'info', run: () => selectConcept(id) },
-						{ label: 'Edit concept', icon: 'edit', run: () => (conceptModal = { mode: 'edit', initial: concept }) },
+						{
+							label: 'Edit concept',
+							icon: 'edit',
+							disabled: !editable,
+							run: () => (conceptModal = { mode: 'edit', initial: concept })
+						},
 						{
 							label: 'Link from here…',
 							icon: 'link',
-							disabled: data.concepts.length < 2,
+							disabled: !editable || viewConcepts.length < 2,
 							run: () => (relationModal = { mode: 'create', sourceId: id })
 						},
 						{
@@ -992,6 +1142,7 @@
 							label: 'Delete concept',
 							icon: 'trash',
 							danger: true,
+							disabled: !editable,
 							run: () => {
 								if (confirm(`Delete "${concept.name}" and its links?`)) deleteConcept(id);
 							}
@@ -1000,22 +1151,23 @@
 				});
 			}
 		} else if (target.kind === 'edge' && target.id) {
-			const rel = data.relations.find((r) => r.id === target.id);
+			const rel = viewRelations.find((r) => r.id === target.id);
 			if (rel) {
-				const source = data.concepts.find((c) => c.id === rel.sourceId)?.name ?? '?';
-				const dest = data.concepts.find((c) => c.id === rel.targetId)?.name ?? '?';
+				const source = viewConcepts.find((c) => c.id === rel.sourceId)?.name ?? '?';
+				const dest = viewConcepts.find((c) => c.id === rel.targetId)?.name ?? '?';
 				sections.push({
 					id: 'target',
 					title: `${source} → ${dest}`,
 					pinned: true,
 					items: [
 						{ label: 'Open discussion', icon: 'message', run: () => openComments(rel) },
-						{ label: 'Edit link', icon: 'edit', run: () => editRelation(rel) },
+						{ label: 'Edit link', icon: 'edit', disabled: !editable, run: () => editRelation(rel) },
 						{ label: 'Copy link', icon: 'copy', run: () => copyText(shareUrlFor('relation', rel.id)) },
 						{
 							label: 'Delete link',
 							icon: 'trash',
 							danger: true,
+							disabled: !editable,
 							run: () => {
 								if (confirm(`Delete the link "${source} ${relationMeta[rel.type]?.phrase ?? rel.type} ${dest}"?`))
 									deleteRelation(rel.id);
@@ -1089,6 +1241,8 @@
 				title: 'Map',
 				icon: 'tag',
 				items: [
+					item('share'),
+					item('versions'),
 					item('relationTypes'),
 					item('activity'),
 					item('exportPng'),
@@ -1137,6 +1291,23 @@
 						{#if creatorName}<span aria-hidden="true">·</span><span>by {creatorName}</span>{/if}
 						<span aria-hidden="true">·</span>
 						<span>since {new Date(data.map.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>
+						<span aria-hidden="true">·</span>
+						<button
+							onclick={() => (shareOpen = true)}
+							class="flex items-center gap-1 uppercase tracking-[0.14em] hover:text-slate-600"
+							title={VISIBILITY_META[data.access.visibility].description}
+						>
+							<Icon
+								name={data.access.visibility === 'private' ? 'lock' : data.access.visibility === 'public_view' ? 'eye' : 'globe'}
+								class="h-3 w-3"
+							/>
+							{VISIBILITY_META[data.access.visibility].short}
+						</button>
+						{#if !canEditMap}
+							<span class="view-only-chip ml-1 rounded-full px-2 py-0.5 normal-case tracking-normal" title="Ask the map's owner for an invite to edit">
+								View only
+							</span>
+						{/if}
 					</p>
 
 					{#if editingMapName}
@@ -1156,6 +1327,8 @@
 						{#if mapNameError}
 							<p class="mt-0.5 text-xs text-red-600">{mapNameError}</p>
 						{/if}
+					{:else if !editable}
+						<h1 class="map-title mt-0.5 truncate text-slate-900">{data.map.name}</h1>
 					{:else}
 						<button onclick={startEditingMapName} class="group mt-0.5 flex max-w-full items-center gap-2 text-left" aria-label="Rename map">
 							<h1 class="map-title truncate text-slate-900">{data.map.name}</h1>
@@ -1185,6 +1358,10 @@
 						{#if mapDescriptionError}
 							<p class="mt-0.5 text-xs text-red-600">{mapDescriptionError}</p>
 						{/if}
+					{:else if !editable}
+						{#if data.map.description}
+							<p class="mt-0.5 line-clamp-2 max-w-xl text-sm leading-snug text-slate-500">{data.map.description}</p>
+						{/if}
 					{:else}
 						<button
 							onclick={startEditingMapDescription}
@@ -1203,8 +1380,8 @@
 
 			<div class="order-3 w-full min-w-0 xl:order-2 xl:w-auto">
 				<MapStats
-					concepts={data.concepts}
-					relations={data.relations}
+					concepts={viewConcepts}
+					relations={viewRelations}
 					activity={data.activity}
 					onSelectConcept={searchSelect}
 				/>
@@ -1225,6 +1402,14 @@
 						}}
 					/>
 				{/if}
+				<button
+					onclick={() => (shareOpen = true)}
+					class="share-btn flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold"
+					title="Share & access"
+				>
+					<Icon name={data.access.visibility === 'private' ? 'lock' : 'share'} class="h-4 w-4" />
+					<span class="max-sm:sr-only">Share</span>
+				</button>
 				<MapHelp bind:open={helpOpen} />
 				{#if isOwner}
 					<button
@@ -1245,7 +1430,7 @@
 		class="relative mx-auto flex w-full flex-1 gap-3 overflow-hidden {isFullscreen ? 'max-w-none p-2' : 'max-w-7xl p-3 sm:p-4'}"
 	>
 		<div class="relative min-h-[420px] flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-			{#if data.concepts.length === 0}
+			{#if viewConcepts.length === 0}
 				<div
 					class="flex h-full flex-col items-center justify-center px-4 text-center"
 					role="presentation"
@@ -1254,18 +1439,25 @@
 						openContextMenu({ kind: 'background' }, e.clientX, e.clientY);
 					}}
 				>
-					<p class="text-slate-500">This map is empty. Add your first concept to get started.</p>
-					<button
-						onclick={() => (conceptModal = { mode: 'create' })}
-						class="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-					>
-						Add a concept
-					</button>
+					{#if preview}
+						<p class="text-slate-500">This version of the map was empty.</p>
+					{:else if editable}
+						<p class="text-slate-500">This map is empty. Add your first concept to get started.</p>
+						<button
+							onclick={() => (conceptModal = { mode: 'create' })}
+							class="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+						>
+							Add a concept
+						</button>
+					{:else}
+						<p class="text-slate-500">This map is empty so far.</p>
+					{/if}
 				</div>
 			{:else}
+				{#key preview ? `preview:${preview.version.id}` : `live:${canvasEpoch}`}
 				<GraphCanvas
 					bind:this={graphRef}
-					concepts={data.concepts}
+					concepts={viewConcepts}
 					relations={visibleRelations}
 					selectedId={selectedConceptId}
 					centralId={centralConceptId}
@@ -1275,7 +1467,7 @@
 					onOpen={selectConcept}
 					onBackgroundClick={clearSelection}
 					onSelectRelation={(id) => {
-						const rel = data.relations.find((r) => r.id === id);
+						const rel = viewRelations.find((r) => r.id === id);
 						if (rel) openComments(rel);
 					}}
 					onNodeMoved={moveConcept}
@@ -1285,6 +1477,35 @@
 					fullscreen={isFullscreen}
 					onToggleFullscreen={toggleFullscreen}
 				/>
+				{/key}
+			{/if}
+
+			<!-- Version preview banner. -->
+			{#if preview}
+				<div
+					class="preview-chip absolute bottom-4 left-1/2 z-20 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 rounded-full py-1 pl-3 pr-1 text-sm max-sm:bottom-16"
+					transition:fly={{ y: 12, duration: 200 }}
+				>
+					<Icon name="history" class="h-4 w-4 shrink-0" />
+					<span class="truncate">Previewing <strong>{preview.version.label}</strong> · read-only</span>
+					{#if canEditMap}
+						<button
+							onclick={() => (rightPanel = 'versions')}
+							class="flex h-7 shrink-0 items-center rounded-full px-2.5 text-xs font-semibold"
+							title="Restore it from the Versions panel"
+						>
+							Restore…
+						</button>
+					{/if}
+					<button
+						onclick={() => (preview = null)}
+						class="flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-semibold"
+						title="Back to the live map (Esc)"
+					>
+						<Icon name="x" class="h-3.5 w-3.5" />
+						Exit
+					</button>
+				</div>
 			{/if}
 
 			<!-- Center-focus chip: shows what the map is focused on, one click to clear. -->
@@ -1329,12 +1550,12 @@
 			<LiveToasts {toasts} onDismiss={dismissToast} />
 
 			<!-- Top-left: search, then the legend beneath it. -->
-			{#if data.concepts.length > 0}
+			{#if viewConcepts.length > 0}
 				<div
 					class="pointer-events-none absolute left-3 top-3 z-20 flex max-h-[calc(100%-9.5rem)] w-[min(18rem,calc(100%-5.5rem))] flex-col gap-2 sm:left-4 sm:top-4"
 				>
 					<div class="pointer-events-auto">
-						<SearchBar bind:this={searchRef} concepts={data.concepts} onSelect={searchSelect} />
+						<SearchBar bind:this={searchRef} concepts={viewConcepts} onSelect={searchSelect} />
 					</div>
 
 					{#if showLegend}
@@ -1347,7 +1568,7 @@
 								<button
 									onclick={() =>
 										(visibleRelationTypes =
-											visibleRelationTypes.size > 0 ? new Set() : new Set([...RELATION_TYPES, ...data.relationTypes.map((t) => t.key)]))}
+											visibleRelationTypes.size > 0 ? new Set() : new Set([...RELATION_TYPES, ...viewRelationTypes.map((t) => t.key)]))}
 									class="text-xs font-medium text-slate-400 hover:text-slate-600"
 								>
 									{visibleRelationTypes.size > 0 ? 'Hide all' : 'Show all'}
@@ -1471,8 +1692,8 @@
 			<div class="absolute inset-3 z-30 shrink-0 sm:static sm:w-full sm:max-w-sm">
 				<ConceptPanel
 					concept={selectedConcept}
-					concepts={data.concepts}
-					relations={data.relations}
+					concepts={viewConcepts}
+					relations={viewRelations}
 					relationMeta={relationMeta}
 					shareUrl={shareUrlFor('concept', selectedConcept.id)}
 					onClose={() => {
@@ -1486,12 +1707,28 @@
 					onDeleteRelation={deleteRelation}
 					onEditRelation={editRelation}
 					onOpenComments={openComments}
-					livePeers={selectedConceptPeers}
+					livePeers={preview ? [] : selectedConceptPeers}
+					readOnly={!editable}
 				/>
 			</div>
 		{:else if rightPanel === 'activity'}
 			<div class="absolute inset-3 z-30 shrink-0 sm:static sm:w-full sm:max-w-sm">
 				<ActivityFeed activity={data.activity} onClose={() => (rightPanel = 'none')} />
+			</div>
+		{:else if rightPanel === 'versions'}
+			<div class="absolute inset-3 z-30 shrink-0 sm:static sm:w-full sm:max-w-sm">
+				<VersionsPanel
+					mapId={data.map.id}
+					currentUserId={data.user?.id ?? ''}
+					canEdit={canEditMap}
+					canManage={data.access.canManage}
+					previewingId={preview?.version.id ?? null}
+					refreshKey={versionsRefreshKey}
+					onPreview={previewVersion}
+					onRestore={restoreVersion}
+					onDownload={downloadVersion}
+					onClose={() => (rightPanel = 'none')}
+				/>
 			</div>
 		{/if}
 	</div>
@@ -1518,8 +1755,8 @@
 		<RelationFormModal
 			mode={relationModal.mode}
 			initial={relationModal.initial}
-			concepts={data.concepts}
-			customTypes={data.relationTypes}
+			concepts={viewConcepts}
+			customTypes={viewRelationTypes}
 			relationMeta={relationMeta}
 			defaultSourceId={relationModal.sourceId}
 			notice={relationNotice}
@@ -1533,7 +1770,7 @@
 	{#if relationTypeManagerOpen}
 		<RelationTypeManager
 			mapId={data.map.id}
-			customTypes={data.relationTypes}
+			customTypes={viewRelationTypes}
 			onClose={() => (relationTypeManagerOpen = false)}
 			onCreate={createRelationType}
 			onUpdate={updateRelationType}
@@ -1542,8 +1779,8 @@
 	{/if}
 
 	{#if commentsRelation}
-		{@const source = data.concepts.find((c) => c.id === commentsRelation!.sourceId)}
-		{@const target = data.concepts.find((c) => c.id === commentsRelation!.targetId)}
+		{@const source = viewConcepts.find((c) => c.id === commentsRelation!.sourceId)}
+		{@const target = viewConcepts.find((c) => c.id === commentsRelation!.targetId)}
 		<RelationCommentsModal
 			relation={commentsRelation}
 			sourceName={source?.name ?? 'Unknown'}
@@ -1556,6 +1793,17 @@
 			onAddComment={addRelationComment}
 			onDeleteComment={deleteRelationComment}
 			refreshKey={commentsRefreshKey}
+			canComment={editable}
+		/>
+	{/if}
+
+	{#if shareOpen}
+		<ShareDialog
+			mapId={data.map.id}
+			currentUserId={data.user?.id ?? ''}
+			onClose={() => (shareOpen = false)}
+			onChanged={() => invalidateAll()}
+			onLeft={() => goto('/maps')}
 		/>
 	{/if}
 
@@ -1564,9 +1812,9 @@
 			<div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
 				<h2 class="text-lg font-semibold text-slate-800">Delete this map?</h2>
 				<p class="mt-2 text-sm text-slate-500">
-					This permanently deletes "{data.map.name}" and all {data.concepts.length}
-					concept{data.concepts.length === 1 ? '' : 's'} and {data.relations.length}
-					link{data.relations.length === 1 ? '' : 's'} in it. This can't be undone.
+					This permanently deletes "{data.map.name}" and all {viewConcepts.length}
+					concept{viewConcepts.length === 1 ? '' : 's'} and {viewRelations.length}
+					link{viewRelations.length === 1 ? '' : 's'} in it. This can't be undone.
 				</p>
 
 				{#if deleteMapError}
@@ -1720,6 +1968,59 @@
 	:global(.dark) .center-chip button {
 		background: #fbbf24;
 		color: #3b2a12;
+	}
+
+	.preview-chip {
+		border: 2px solid var(--memphis-ink);
+		background: #fff7e0;
+		color: var(--memphis-ink);
+		box-shadow: 3px 3px 0 var(--memphis-ink);
+	}
+	.preview-chip button {
+		background: var(--memphis-ink);
+		color: #fff7e0;
+	}
+	.preview-chip button:hover {
+		background: var(--memphis-pink);
+		color: white;
+	}
+	:global(.dark) .preview-chip {
+		border-color: #fbbf24;
+		background: #3b2a12;
+		color: #fde68a;
+		box-shadow: 3px 3px 0 #fbbf24;
+	}
+	:global(.dark) .preview-chip button {
+		background: #fbbf24;
+		color: #3b2a12;
+	}
+
+	.share-btn {
+		border: 2px solid var(--memphis-ink);
+		color: var(--memphis-ink);
+		transition:
+			transform 150ms ease,
+			box-shadow 150ms ease;
+	}
+	.share-btn:hover {
+		transform: translate(-1px, -1px);
+		box-shadow: 3px 3px 0 var(--memphis-ink);
+	}
+	:global(.dark) .share-btn {
+		border-color: #475569;
+		color: #e2e8f0;
+	}
+	:global(.dark) .share-btn:hover {
+		box-shadow: 3px 3px 0 var(--memphis-cyan);
+	}
+
+	.view-only-chip {
+		background: #e0f7fa;
+		color: #0e7490;
+	}
+	:global(.dark) .view-only-chip {
+		background: rgb(0 194 209 / 0.15);
+		color: #67e8f9;
 	}
 
 	.follow-chip {

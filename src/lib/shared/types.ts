@@ -132,3 +132,80 @@ export interface LiveUpdate {
 	/** Fingerprint of `peers`; echo it back as `sig`. */
 	sig: string;
 }
+
+// --- versions & sharing ------------------------------------------------------
+
+/** A map's content at a point in time, as stored in map_versions.snapshot. */
+export interface MapSnapshot {
+	format: 1;
+	name: string;
+	description: string | null;
+	concepts: {
+		id: string;
+		name: string;
+		definition: string | null;
+		literatureLink: string | null;
+		example: string | null;
+		quizQuestion: string | null;
+		x: number | null;
+		y: number | null;
+		createdBy: string;
+		updatedBy: string;
+		createdAt: number;
+		updatedAt: number;
+	}[];
+	relations: {
+		id: string;
+		sourceId: string;
+		targetId: string;
+		type: string;
+		direction: string;
+		description: string | null;
+		createdBy: string;
+		createdAt: number;
+		updatedBy: string | null;
+		updatedAt: number | null;
+	}[];
+	relationTypes: {
+		id: string;
+		key: string;
+		label: string;
+		phrase: string;
+		color: string;
+		directional: boolean;
+		description: string | null;
+		createdBy: string;
+		createdAt: number;
+		updatedAt: number;
+	}[];
+}
+
+export interface ClientMapVersion {
+	id: string;
+	mapId: string;
+	label: string;
+	/** 'auto' versions are taken automatically, e.g. just before a restore. */
+	kind: 'manual' | 'auto';
+	conceptCount: number;
+	relationCount: number;
+	createdById: string;
+	createdByName: string | null;
+	createdByColor: string | null;
+	createdAt: string;
+}
+
+export interface ClientMapMember {
+	userId: string;
+	name: string;
+	color: string;
+	isOwner: boolean;
+	addedAt: string | null;
+}
+
+export interface ClientSharing {
+	visibility: import('./access').Visibility;
+	canManage: boolean;
+	members: ClientMapMember[];
+	/** Path of the invite link (owner only); null when the link is off. */
+	invitePath: string | null;
+}

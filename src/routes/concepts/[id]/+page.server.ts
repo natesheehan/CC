@@ -7,7 +7,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		throw redirect(303, `/login?redirectTo=${encodeURIComponent(url.pathname)}`);
 	}
 
-	const entry = await getConceptEntry(params.id);
+	const entry = await getConceptEntry(params.id, locals.user.id);
 	if (!entry) throw error(404, 'Concept not found');
 
 	const serialize = <T extends { createdAt: Date }>(c: T) => ({ ...c, createdAt: c.createdAt.toISOString() });

@@ -30,6 +30,15 @@ attributed to a signed-in user and recorded in an activity log.
   editing — or has just saved — the same concept or link. You can jump to or *follow*
   any collaborator's view. Works over a lightweight heartbeat (`POST /maps/:id/live`), so it
   needs no extra infrastructure on serverless hosting.
+- **Sharing** — each map is *public, anyone can edit* (the default, and what every map
+  created before sharing existed became), *public, invite to edit* (everyone can view; only
+  invited people edit), or *private* (only invited people can see or edit). The owner invites
+  people by sign-in name or with an invite link they can reset or turn off. Private maps are
+  hidden everywhere: dashboard, concept dictionary, community page and live presence.
+  Rules live in `src/lib/shared/access.ts` and are enforced in `src/lib/server/access.ts`.
+- **Versions** — save a named snapshot of a map, preview it read-only on the canvas, download
+  it, or restore it. A restore first saves the current state as an automatic version, so it
+  can be undone. Concepts and links keep their ids, so discussion threads survive.
 - **Simple named sign-in** — no passwords. Enter a display name once; a cookie keeps you
   signed in as that person so your edits are attributed correctly.
 - **Persistent storage** — SQLite-compatible storage (libSQL), so maps survive restarts

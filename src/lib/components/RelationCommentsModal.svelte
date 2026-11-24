@@ -14,8 +14,11 @@
 		onLoadComments,
 		onAddComment,
 		onDeleteComment,
-		refreshKey = 0
+		refreshKey = 0,
+		canComment = true
 	}: {
+		/** False for view-only visitors: they can read the thread but not post. */
+		canComment?: boolean;
 		/** Bump to re-fetch quietly (e.g. someone else commented live). */
 		refreshKey?: number;
 		relation: ClientRelation;
@@ -131,7 +134,7 @@
 			{:else if loadError}
 				<p class="text-sm text-red-600">{loadError}</p>
 			{:else if comments.length === 0}
-				<p class="text-sm text-slate-400">No comments yet. Start the discussion below.</p>
+				<p class="text-sm text-slate-400">No comments yet.{canComment ? ' Start the discussion below.' : ''}</p>
 			{:else}
 				{#each comments as comment (comment.id)}
 					<div class="group rounded-md border border-slate-100 p-2.5">
@@ -159,6 +162,11 @@
 			{/if}
 		</div>
 
+		{#if !canComment}
+			<p class="border-t border-slate-100 px-6 py-3 text-xs text-slate-400">
+				You can read this discussion, but only people invited to edit the map can comment.
+			</p>
+		{:else}
 		<form onsubmit={submitComment} class="border-t border-slate-100 px-6 py-3">
 			{#if postError}<p class="mb-1.5 text-sm text-red-600">{postError}</p>{/if}
 			<div class="flex items-end gap-2">
@@ -178,6 +186,7 @@
 				</button>
 			</div>
 		</form>
+		{/if}
 
 		<div class="flex items-center justify-between border-t border-slate-100 px-6 py-3">
 			<button onclick={copyLink} class="text-xs font-medium text-blue-600 hover:underline">

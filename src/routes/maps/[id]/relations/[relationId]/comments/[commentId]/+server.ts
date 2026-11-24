@@ -1,4 +1,5 @@
 import { json, error } from '@sveltejs/kit';
+import { requireMapView } from '$lib/server/access';
 import { eq, and } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { relationComments } from '$lib/server/db/schema';
@@ -12,6 +13,7 @@ export const config: Config = LIGHT_FUNCTION_CONFIG;
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
+	await requireMapView(params.id, locals.user.id);
 	await rateLimitUserWrite(locals.user.id);
 
 	const existing = await db

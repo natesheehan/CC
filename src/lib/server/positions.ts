@@ -2,6 +2,7 @@ import { and, eq, or, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { db } from './db';
 import { concepts } from './db/schema';
+import { canEditMapSql } from './access';
 import { USER_WRITE_LIMIT, rateLimitUpsert, retryAfterSeconds, userWriteKey, withinRateLimit } from './rateLimit';
 
 export const MAX_POSITIONS_PER_REQUEST = 1000;
@@ -42,7 +43,9 @@ export function positionUpdate(mapId: string, p: Position, now: number, userId: 
 				eq(concepts.id, p.id),
 				eq(concepts.mapId, mapId),
 				or(sql`${concepts.x} IS NOT ${p.x}`, sql`${concepts.y} IS NOT ${p.y}`),
-				withinRateLimit(userWriteKey(userId), USER_WRITE_LIMIT.limit)
+				withinRateLimit(userWriteKey(userId), USER_WRITE_LIMIT.limit),
+				// View-only visitors can rearrange their own screen, but it isn't saved.
+				canEditMapSql(mapId, userId)
 			)
 		);
 }

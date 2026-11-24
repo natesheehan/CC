@@ -1,7 +1,8 @@
 import { and, eq, gt, lt, ne, desc, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { db } from './db';
-import { activityLog, concepts, mapPresence, maps, sessions, users } from './db/schema';
+import { activityLog, concepts, mapMembers, mapPresence, maps, sessions, users } from './db/schema';
+import { resolveAccess } from '$lib/shared/access';
 import { MAX_PEERS, PRESENCE_TTL_MS, peersSignature } from '$lib/shared/live';
 import type { ClientActivityEntry, LiveHeartbeat, LivePeer, LiveUpdate } from '$lib/shared/types';
 
@@ -86,7 +87,17 @@ export function liveReadQueries(mapId: string, sessionId: string, now: number, s
 			.from(sessions)
 			.where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, new Date(now))))
 			.limit(1),
-		mapExists: db.select({ id: maps.id }).from(maps).where(eq(maps.id, mapId)).limit(1),
+		// The map and whether the caller is invited to it — private maps are
+		// only live for their owner and members.
+		mapAccess: db
+			.select({
+				visibility: maps.visibility,
+				createdBy: maps.createdBy,
+				isMember: sql<number>`exists (select 1 from ${mapMembers} where ${mapMembers.mapId} = ${maps.id} and ${mapMembers.userId} = ${sessionUser(sessionId, now)})`
+			})
+			.from(maps)
+			.where(eq(maps.id, mapId))
+			.limit(1),
 		peers: db
 			.select({
 				clientId: mapPresence.clientId,
@@ -155,6 +166,12 @@ export function presenceUpsert(mapId: string, sessionId: string, beat: LiveHeart
 			${beat.cursor?.x ?? null}, ${beat.cursor?.y ?? null}, ${now}
 		FROM sessions s
 		WHERE s.id = ${sessionId} AND s.expires_at > ${now}
+			-- Never announce someone on a private map they aren't invited to.
+			AND NOT EXISTS (
+				SELECT 1 FROM maps m WHERE m.id = ${mapId} AND m.visibility = 'private'
+					AND m.created_by <> s.user_id
+					AND NOT EXISTS (SELECT 1 FROM map_members mm WHERE mm.map_id = m.id AND mm.user_id = s.user_id)
+			)
 		ON CONFLICT(client_id) DO UPDATE SET
 			map_id = excluded.map_id,
 			focus_id = excluded.focus_id,
@@ -198,7 +215,7 @@ export async function heartbeat(
 	if (opts.sweep ?? Math.random() < SWEEP_PROBABILITY) items.push(presenceSweep(now));
 	const at = {
 		session: items.push(reads.session) - 1,
-		mapExists: items.push(reads.mapExists) - 1,
+		mapAccess: items.push(reads.mapAccess) - 1,
 		peers: items.push(reads.peers) - 1,
 		activity: reads.activity ? items.push(reads.activity) - 1 : -1,
 		moves: reads.moves ? items.push(reads.moves) - 1 : -1
@@ -207,8 +224,11 @@ export async function heartbeat(
 	const results = (await db.batch(items as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]])) as unknown[];
 	const rows = <T>(i: number) => (i < 0 ? [] : (results[i] as T[]));
 
-	if (rows<{ userId: string }>(at.session).length === 0) return { status: 'unauthorized' };
-	if (rows<{ id: string }>(at.mapExists).length === 0) return { status: 'gone' };
+	const session = rows<{ userId: string }>(at.session)[0];
+	if (!session) return { status: 'unauthorized' };
+	const mapRow = rows<{ visibility: string; createdBy: string; isMember: number }>(at.mapAccess)[0];
+	// A private map you aren't invited to looks exactly like a missing one.
+	if (!mapRow || !resolveAccess(mapRow, session.userId, Boolean(mapRow.isMember)).canView) return { status: 'gone' };
 
 	type PeerRow = {
 		clientId: string;

@@ -1,18 +1,22 @@
-import { eq, desc, sql } from 'drizzle-orm';
+import { and, eq, desc, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { db } from './db';
-import { maps, concepts, conceptRelations, relationTypes, relationComments, activityLog, users } from './db/schema';
+import { maps, concepts, conceptRelations, relationTypes, relationComments, activityLog, users, mapMembers } from './db/schema';
+import { canViewMapRowSql } from './access';
 
 const creator = alias(users, 'creator');
 const editor = alias(users, 'editor');
 const relationEditor = alias(users, 'relationEditor');
 
-export async function listMapsWithStats() {
+/** Maps `viewerId` can see (private maps only for their owner and members). */
+export async function listMapsWithStats(viewerId: string | null) {
 	return await db
 		.select({
 			id: maps.id,
 			name: maps.name,
 			description: maps.description,
+			visibility: maps.visibility,
+			isMember: sql<number>`exists (select 1 from ${mapMembers} where ${mapMembers.mapId} = ${maps.id} and ${mapMembers.userId} = ${viewerId ?? ''})`,
 			createdAt: maps.createdAt,
 			updatedAt: maps.updatedAt,
 			createdById: maps.createdBy,
@@ -30,6 +34,7 @@ export async function listMapsWithStats() {
 		})
 		.from(maps)
 		.leftJoin(users, eq(maps.createdBy, users.id))
+		.where(canViewMapRowSql(viewerId))
 		.orderBy(desc(maps.updatedAt))
 		.all();
 }
@@ -68,7 +73,7 @@ export async function getMapConcepts(mapId: string) {
 
 // A global, cross-map directory of every concept — used by the /concepts
 // dictionary page rather than a single map's canvas.
-export async function getAllConcepts() {
+export async function getAllConcepts(viewerId: string | null) {
 	return await db
 		.select({
 			id: concepts.id,
@@ -85,13 +90,14 @@ export async function getAllConcepts() {
 		.from(concepts)
 		.innerJoin(maps, eq(concepts.mapId, maps.id))
 		.leftJoin(creator, eq(concepts.createdBy, creator.id))
+		.where(canViewMapRowSql(viewerId))
 		.orderBy(concepts.name)
 		.all();
 }
 
 // A single dictionary entry, plus every concept across maps that shares its
 // name — used by the /concepts/[id] permalink page.
-export async function getConceptEntry(id: string) {
+export async function getConceptEntry(id: string, viewerId: string | null) {
 	const conceptFields = {
 		id: concepts.id,
 		mapId: concepts.mapId,
@@ -110,7 +116,7 @@ export async function getConceptEntry(id: string) {
 		.from(concepts)
 		.innerJoin(maps, eq(concepts.mapId, maps.id))
 		.leftJoin(creator, eq(concepts.createdBy, creator.id))
-		.where(eq(concepts.id, id))
+		.where(and(eq(concepts.id, id), canViewMapRowSql(viewerId)))
 		.get();
 	if (!concept) return null;
 
@@ -119,7 +125,7 @@ export async function getConceptEntry(id: string) {
 		.from(concepts)
 		.innerJoin(maps, eq(concepts.mapId, maps.id))
 		.leftJoin(creator, eq(concepts.createdBy, creator.id))
-		.where(sql`lower(trim(${concepts.name})) = lower(trim(${concept.name}))`)
+		.where(and(sql`lower(trim(${concepts.name})) = lower(trim(${concept.name}))`, canViewMapRowSql(viewerId)))
 		.orderBy(maps.name)
 		.all();
 
@@ -250,7 +256,7 @@ function activityWindowStart() {
 	return (today - (ACTIVITY_WINDOW_DAYS - 1)) * DAY_MS;
 }
 
-export async function getCommunityStats() {
+export async function getCommunityStats(viewerId: string | null) {
 	const [
 		userCount,
 		mapCount,
@@ -301,11 +307,14 @@ export async function getCommunityStats() {
 				userColor: users.color
 			})
 			.from(activityLog)
+			.innerJoin(maps, eq(activityLog.mapId, maps.id))
 			.leftJoin(users, eq(activityLog.userId, users.id))
+			// Summaries name concepts, so private maps' activity stays private.
+			.where(canViewMapRowSql(viewerId))
 			.orderBy(desc(activityLog.createdAt))
 			.limit(8)
 			.all(),
-		listMapsWithStats().then((allMaps) => allMaps.slice(0, 5)),
+		listMapsWithStats(viewerId).then((allMaps) => allMaps.slice(0, 5)),
 		// Edits per UTC day over the activity window, for the community pulse chart.
 		db
 			.select({

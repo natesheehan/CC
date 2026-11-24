@@ -6,18 +6,22 @@ import { listMapsWithStats } from '$lib/server/queries';
 import { logActivity } from '$lib/server/activity';
 import type { Actions, PageServerLoad } from './$types';
 import { checkRateLimit } from '$lib/server/rateLimit';
+import { DEFAULT_VISIBILITY, isVisibility } from '$lib/shared/access';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) {
 		throw redirect(303, `/login?redirectTo=${encodeURIComponent(url.pathname)}`);
 	}
 
-	const allMaps = await listMapsWithStats();
-	const myMaps = allMaps.filter((m) => m.createdById === locals.user!.id);
-	const otherMaps = allMaps.filter((m) => m.createdById !== locals.user!.id);
+	const allMaps = await listMapsWithStats(locals.user.id);
+	const me = locals.user.id;
+	const myMaps = allMaps.filter((m) => m.createdById === me);
+	const sharedMaps = allMaps.filter((m) => m.createdById !== me && m.isMember);
+	const otherMaps = allMaps.filter((m) => m.createdById !== me && !m.isMember);
 
 	return {
 		myMaps,
+		sharedMaps,
 		otherMaps
 	};
 };
@@ -39,6 +43,8 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 		const description = String(form.get('description') ?? '').trim();
+		const visibilityRaw = form.get('visibility');
+		const visibility = isVisibility(visibilityRaw) ? visibilityRaw : DEFAULT_VISIBILITY;
 
 		if (name.length < 2 || name.length > 120) {
 			return fail(400, { error: 'Map name must be between 2 and 120 characters.' });
@@ -53,6 +59,7 @@ export const actions: Actions = {
 				id,
 				name,
 				description: description || null,
+				visibility,
 				createdBy: locals.user.id,
 				createdAt: now,
 				updatedAt: now

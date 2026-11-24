@@ -225,6 +225,26 @@ const STATEMENTS = [
 		cursor_y INTEGER,
 		last_seen INTEGER NOT NULL
 	)`,
+	`CREATE TABLE IF NOT EXISTS map_members (
+		map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		added_by TEXT REFERENCES users(id),
+		created_at INTEGER NOT NULL,
+		PRIMARY KEY (map_id, user_id)
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_map_members_user ON map_members(user_id)`,
+	`CREATE TABLE IF NOT EXISTS map_versions (
+		id TEXT PRIMARY KEY,
+		map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+		label TEXT NOT NULL,
+		kind TEXT NOT NULL DEFAULT 'manual',
+		concept_count INTEGER NOT NULL,
+		relation_count INTEGER NOT NULL,
+		snapshot TEXT NOT NULL,
+		created_by TEXT NOT NULL REFERENCES users(id),
+		created_at INTEGER NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_map_versions_map ON map_versions(map_id, created_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_presence_map ON map_presence(map_id, last_seen)`,
 	// Lets the stale-row sweep seek instead of scanning the whole table.
 	`CREATE INDEX IF NOT EXISTS idx_presence_last_seen ON map_presence(last_seen)`,
@@ -248,7 +268,10 @@ const COLUMN_MIGRATIONS = [
 	"ALTER TABLE concept_relations ADD COLUMN direction TEXT NOT NULL DEFAULT 'forward'",
 	'ALTER TABLE concept_relations ADD COLUMN updated_by TEXT REFERENCES users(id)',
 	'ALTER TABLE concept_relations ADD COLUMN updated_at INTEGER',
-	'ALTER TABLE concepts ADD COLUMN moved_at INTEGER'
+	'ALTER TABLE concepts ADD COLUMN moved_at INTEGER',
+	// Sharing. The default makes every pre-existing map "anyone can edit".
+	"ALTER TABLE maps ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public_edit'",
+	'ALTER TABLE maps ADD COLUMN invite_token TEXT'
 ];
 
 // Statements that depend on the migrated columns.

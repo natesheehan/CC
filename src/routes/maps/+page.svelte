@@ -3,6 +3,7 @@
 	import { relativeTime } from '$lib/shared/format';
 	import PageHero from '$lib/components/PageHero.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { VISIBILITIES, VISIBILITY_META, normalizeVisibility, type Visibility } from '$lib/shared/access';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -10,10 +11,12 @@
 	let showCreate = $state(false);
 	let submitting = $state(false);
 	let query = $state('');
+	let newVisibility = $state<Visibility>('public_edit');
+	const VIS_ICON = { public_edit: 'globe', public_view: 'eye', private: 'lock' } as const;
 
 	type MapRow = PageData['myMaps'][number];
 
-	const allMaps = $derived([...data.myMaps, ...data.otherMaps]);
+	const allMaps = $derived([...data.myMaps, ...data.sharedMaps, ...data.otherMaps]);
 	const totals = $derived({
 		concepts: allMaps.reduce((n, m) => n + m.conceptCount, 0),
 		links: allMaps.reduce((n, m) => n + m.relationCount, 0)
@@ -24,6 +27,7 @@
 		return !q || map.name.toLowerCase().includes(q) || (map.description ?? '').toLowerCase().includes(q);
 	}
 	const myFiltered = $derived(data.myMaps.filter(matches));
+	const sharedFiltered = $derived(data.sharedMaps.filter(matches));
 	const otherFiltered = $derived(data.otherMaps.filter(matches));
 
 	// A small, deterministic "constellation" per map — seeded by its id and
@@ -135,6 +139,9 @@
 			{@render section('Your maps', myFiltered, data.myMaps.length === 0
 				? "You haven't created a map yet — start one, or explore the maps below."
 				: `No maps of yours match "${query}".`)}
+			{#if data.sharedMaps.length > 0}
+				{@render section('Shared with you', sharedFiltered, `No maps shared with you match "${query}".`)}
+			{/if}
 			{@render section('Other maps', otherFiltered, data.otherMaps.length === 0
 				? 'No other maps have been created yet.'
 				: `No other maps match "${query}".`)}
@@ -155,6 +162,7 @@
 			<div class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
 				{#each maps as map, i (map.id)}
 					{@const shape = constellation(map.id, map.conceptCount, map.relationCount)}
+					{@const vis = normalizeVisibility(map.visibility)}
 					<a
 						href="/maps/{map.id}"
 						class="cc-card cc-card-link cc-rise group flex flex-col overflow-hidden"
@@ -182,6 +190,12 @@
 								{/if}
 							</svg>
 							<span class="cc-chip absolute right-3 top-3 !py-0.5 !text-[10px]">{relativeTime(map.updatedAt)}</span>
+							<span
+								class="cc-chip absolute left-3 top-3 flex items-center gap-1 !py-0.5 !text-[10px]"
+								title={VISIBILITY_META[vis].description}
+							>
+								<Icon name={VIS_ICON[vis]} class="h-3 w-3" />{VISIBILITY_META[vis].short}
+							</span>
 						</div>
 						<div class="flex flex-1 flex-col p-5">
 							<h3 class="cc-display text-lg leading-snug text-slate-900 group-hover:text-memphis-pinkDeep">{map.name}</h3>
@@ -234,6 +248,28 @@
 						<label for="map-description" class="mb-1.5 block text-sm font-bold text-slate-700">Description</label>
 						<textarea id="map-description" name="description" rows="3" placeholder="What is this map exploring?"></textarea>
 					</div>
+
+					<fieldset>
+						<legend class="mb-1.5 block text-sm font-bold text-slate-700">Who can access it</legend>
+						<div class="space-y-1.5">
+							{#each VISIBILITIES as v (v)}
+								<label
+									class="flex cursor-pointer items-start gap-2.5 rounded-lg border-2 px-3 py-2 text-sm transition {newVisibility === v
+										? 'border-memphis-pink bg-pink-50/60'
+										: 'border-slate-200 hover:border-slate-300'}"
+								>
+									<input type="radio" name="visibility" value={v} bind:group={newVisibility} class="mt-1 !w-auto" />
+									<span>
+										<span class="flex items-center gap-1.5 font-semibold text-slate-800">
+											<Icon name={VIS_ICON[v]} class="h-3.5 w-3.5" />{VISIBILITY_META[v].label}
+										</span>
+										<span class="block text-xs text-slate-500">{VISIBILITY_META[v].description}</span>
+									</span>
+								</label>
+							{/each}
+						</div>
+						<p class="mt-1.5 text-xs text-slate-400">You can change this and invite people from the map's Share menu.</p>
+					</fieldset>
 
 					{#if form?.error}
 						<p class="text-sm text-red-600">{form.error}</p>

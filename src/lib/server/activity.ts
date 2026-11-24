@@ -16,13 +16,19 @@ export type ActivityAction =
 	| 'commented_relation'
 	| 'created_relation_type'
 	| 'updated_relation_type'
-	| 'deleted_relation_type';
+	| 'deleted_relation_type'
+	| 'changed_visibility'
+	| 'invited_member'
+	| 'removed_member'
+	| 'joined_map'
+	| 'saved_version'
+	| 'restored_version';
 
 export async function logActivity(params: {
 	mapId: string;
 	userId: string;
 	action: ActivityAction;
-	entityType: 'map' | 'concept' | 'relation' | 'relation_type' | 'comment';
+	entityType: 'map' | 'concept' | 'relation' | 'relation_type' | 'comment' | 'member' | 'version';
 	entityId: string;
 	summary: string;
 }): Promise<void> {
