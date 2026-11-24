@@ -7,6 +7,8 @@
 	import UserStatsPopover from '$lib/components/UserStatsPopover.svelte';
 	import ExperimentalBadge from '$lib/components/ExperimentalBadge.svelte';
 	import { APP_VERSION } from '$lib/shared/version';
+	import Icon from '$lib/components/Icon.svelte';
+	import { BUG_REPORT_URL } from '$lib/shared/links';
 
 	let { data, children } = $props();
 	let isDark = $state(false);
@@ -150,6 +152,15 @@
 				{#each legalLinks as link (link.href)}
 					<a class="font-semibold text-slate-500 hover:text-slate-900 hover:underline" href={link.href}>{link.label}</a>
 				{/each}
+				<a
+					class="inline-flex items-center gap-1 font-semibold text-slate-500 hover:text-slate-900 hover:underline"
+					href={BUG_REPORT_URL}
+					target="_blank"
+					rel="noopener noreferrer"
+					title="Report a bug on GitHub"
+				>
+					<Icon name="bug" class="h-3.5 w-3.5" /> Report a bug
+				</a>
 			</nav>
 		</div>
 		<div class="cc-stripe"></div>

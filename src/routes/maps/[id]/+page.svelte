@@ -19,7 +19,11 @@
 	import LiveToasts, { type LiveToast } from '$lib/components/LiveToasts.svelte';
 	import ShareDialog from '$lib/components/ShareDialog.svelte';
 	import VersionsPanel from '$lib/components/VersionsPanel.svelte';
+	import LayoutPicker from '$lib/components/LayoutPicker.svelte';
+	import { LAYOUT_BY_ID, type LayoutId, type Positions } from '$lib/shared/layouts';
 	import { VISIBILITY_META } from '$lib/shared/access';
+	import { feedbackUrl } from '$lib/shared/links';
+	import { env } from '$env/dynamic/public';
 	import type { CustomRelationType } from '$lib/shared/relations';
 	import { LiveSession, describePeer } from '$lib/client/live.svelte';
 	import { RELATION_TYPES, mergeRelationMeta } from '$lib/shared/relations';
@@ -164,13 +168,46 @@
 		});
 	}
 
+	// Jump somewhere new: a random concept (never the one already selected).
+	function goToRandomConcept() {
+		const pool = viewConcepts.filter((c) => c.id !== selectedConceptId);
+		const pick = pool[Math.floor(Math.random() * pool.length)] ?? viewConcepts[0];
+		if (pick) searchSelect(pick.id);
+	}
+
+	const FEEDBACK_URL = feedbackUrl(env.PUBLIC_FEEDBACK_FORM_URL);
+
 	function setCentralConcept() {
 		if (!selectedConceptId) return;
 		centralConceptId = centralConceptId === selectedConceptId ? null : selectedConceptId;
 	}
 
-	function arrangeAroundCentral() {
-		if (centralConceptId) graphRef?.reArrangeAround(centralConceptId);
+	// --- layouts --------------------------------------------------------------
+	/** Open = the picker is showing; `center` preselects the center concept. */
+	let layoutPicker = $state<{ center: string | null } | null>(null);
+	/** Positions before the last layout, so it can be undone for a few seconds. */
+	let layoutUndo = $state<{ label: string; positions: Positions } | null>(null);
+	let layoutUndoTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function openLayoutPicker(center: string | null = centralConceptId ?? selectedConceptId) {
+		layoutPicker = { center };
+	}
+
+	function applyLayout(id: LayoutId, centerId: string | null = null) {
+		layoutPicker = null;
+		if (centerId) centralConceptId = centerId;
+		const before = graphRef?.runLayout(id, centerId);
+		if (!before) return;
+		clearTimeout(layoutUndoTimer);
+		layoutUndo = { label: LAYOUT_BY_ID[id].label, positions: before };
+		layoutUndoTimer = setTimeout(() => (layoutUndo = null), 12_000);
+	}
+
+	function undoLayout() {
+		if (!layoutUndo) return;
+		graphRef?.applyPositions(layoutUndo.positions);
+		clearTimeout(layoutUndoTimer);
+		layoutUndo = null;
 	}
 
 	// Deep-link support: on load (and whenever the URL changes), open the
@@ -912,8 +949,8 @@
 	};
 
 	type ActionId =
-		| 'addConcept' | 'addLink' | 'search'
-		| 'setCenter' | 'arrange' | 'clearCenter' | 'relayout'
+		| 'addConcept' | 'addLink' | 'search' | 'random'
+		| 'layouts' | 'setCenter' | 'arrange' | 'clearCenter' | 'relayout'
 		| 'zoomIn' | 'zoomOut' | 'fit' | 'rotate' | 'resetView' | 'fullscreen' | 'legend' | 'tools'
 		| 'cursors' | 'stopFollowing'
 		| 'share' | 'versions' | 'relationTypes' | 'activity' | 'exportPng' | 'exportSvg' | 'exportJson' | 'rename' | 'describe' | 'deleteMap';
@@ -940,6 +977,13 @@
 			disabled: !hasConcepts,
 			run: () => searchRef?.focus()
 		},
+		random: {
+			label: 'Go to random concept',
+			icon: 'dice',
+			shortcut: 'R',
+			disabled: !hasConcepts,
+			run: goToRandomConcept
+		},
 		setCenter: {
 			label: selectedConceptId && selectedConceptId === centralConceptId ? 'Unset center' : 'Set selected as center',
 			icon: 'target',
@@ -947,11 +991,18 @@
 			disabled: !selectedConceptId,
 			run: setCentralConcept
 		},
-		arrange: {
-			label: 'Arrange around center',
+		layouts: {
+			label: 'Arrange map…',
 			icon: 'orbit',
-			disabled: !centralConceptId,
-			run: arrangeAroundCentral
+			shortcut: 'A',
+			disabled: !hasConcepts,
+			run: () => openLayoutPicker()
+		},
+		arrange: {
+			label: 'Arrange around center…',
+			icon: 'target',
+			disabled: !centralConceptId && !selectedConceptId,
+			run: () => openLayoutPicker(centralConceptId ?? selectedConceptId)
 		},
 		clearCenter: {
 			label: 'Clear center',
@@ -963,7 +1014,7 @@
 			label: 'Re-run auto layout',
 			icon: 'shuffle',
 			disabled: !hasConcepts,
-			run: () => graphRef?.reArrange()
+			run: () => applyLayout('organic')
 		},
 		zoomIn: { label: 'Zoom in', icon: 'zoomIn', shortcut: '+', disabled: !hasConcepts, run: () => graphRef?.zoomIn() },
 		zoomOut: { label: 'Zoom out', icon: 'zoomOut', shortcut: '−', disabled: !hasConcepts, run: () => graphRef?.zoomOut() },
@@ -1031,7 +1082,7 @@
 
 	const TOOL_GROUPS: { title: string; ids: ActionId[] }[] = [
 		{ title: 'Create', ids: ['addConcept', 'addLink'] },
-		{ title: 'Layout', ids: ['setCenter', 'arrange', 'clearCenter', 'relayout'] },
+		{ title: 'Layout', ids: ['layouts', 'setCenter', 'arrange', 'clearCenter', 'relayout'] },
 		{ title: 'Map', ids: ['share', 'versions', 'relationTypes', 'activity', 'exportPng', 'exportSvg', 'exportJson'] },
 		{ title: 'Live', ids: ['cursors', 'stopFollowing'] }
 	];
@@ -1044,7 +1095,8 @@
 			!!commentsRelation ||
 			confirmDeleteMap ||
 			helpOpen ||
-			shareOpen
+			shareOpen ||
+			!!layoutPicker
 	);
 
 	function onWindowKeydown(e: KeyboardEvent) {
@@ -1054,7 +1106,8 @@
 		if (e.key === 'Escape') {
 			// Peel back one layer at a time: follow mode, fallback full
 			// screen, then the center highlight, then the selection.
-			if (preview) preview = null;
+			if (layoutUndo) undoLayout();
+			else if (preview) preview = null;
 			else if (followingClientId) followingClientId = null;
 			else if (pseudoFullscreen) pseudoFullscreen = false;
 			else if (centralConceptId) centralConceptId = null;
@@ -1063,6 +1116,8 @@
 		}
 		const byKey: Record<string, ActionId> = {
 			'/': 'search',
+			r: 'random',
+			a: 'layouts',
 			n: 'addConcept',
 			l: 'addLink',
 			f: 'fullscreen',
@@ -1129,12 +1184,14 @@
 							run: () => (centralConceptId = isCentral ? null : id)
 						},
 						{
-							label: 'Arrange around this',
+							label: 'Radial tree around this',
 							icon: 'orbit',
-							run: () => {
-								centralConceptId = id;
-								graphRef?.reArrangeAround(id);
-							}
+							run: () => applyLayout('radial-tree', id)
+						},
+						{
+							label: 'More layouts around this…',
+							icon: 'target',
+							run: () => openLayoutPicker(id)
 						},
 						{ label: 'Center in view', icon: 'eye', run: () => graphRef?.focusNode(id) },
 						{ label: 'Copy link', icon: 'copy', run: () => copyText(shareUrlFor('concept', id)) },
@@ -1190,14 +1247,24 @@
 							(conceptModal = { mode: 'create', position: target.kind === 'background' ? graph ?? undefined : undefined })
 					}),
 					item('addLink'),
-					item('search')
+					item('search'),
+					item('random')
 				]
 			},
 			{
 				id: 'layout',
 				title: 'Layout',
 				icon: 'orbit',
-				items: [item('setCenter'), item('arrange'), item('clearCenter'), item('relayout')]
+				items: [
+					item('layouts'),
+					{ label: 'Circle', icon: 'orbit', disabled: !hasConcepts, run: () => applyLayout('circle') },
+					{ label: 'Clusters', icon: 'orbit', disabled: !hasConcepts, run: () => applyLayout('clusters') },
+					{ label: 'Flow ↓', icon: 'orbit', disabled: !hasConcepts, run: () => applyLayout('flow-down') },
+					item('setCenter'),
+					item('arrange'),
+					item('clearCenter'),
+					item('relayout')
+				]
 			},
 			{
 				id: 'view',
@@ -1427,7 +1494,7 @@
 
 	<!-- Body -->
 	<div
-		class="relative mx-auto flex w-full flex-1 gap-3 overflow-hidden {isFullscreen ? 'max-w-none p-2' : 'max-w-7xl p-3 sm:p-4'}"
+		class="relative mx-auto flex w-full flex-1 gap-3 overflow-hidden {isFullscreen ? 'max-w-none p-2 sm:pr-11' : 'max-w-7xl p-3 sm:p-4 sm:pr-12'}"
 	>
 		<div class="relative min-h-[420px] flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 			{#if viewConcepts.length === 0}
@@ -1476,8 +1543,28 @@
 					onCursorMove={(p) => live?.setCursor(p)}
 					fullscreen={isFullscreen}
 					onToggleFullscreen={toggleFullscreen}
+					onRandomConcept={goToRandomConcept}
 				/>
 				{/key}
+			{/if}
+
+			<!-- Undo for the last layout. -->
+			{#if layoutUndo}
+				<div
+					class="preview-chip absolute bottom-16 left-1/2 z-20 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 rounded-full py-1 pl-3 pr-1 text-sm max-sm:bottom-28"
+					transition:fly={{ y: 12, duration: 200 }}
+				>
+					<Icon name="orbit" class="h-4 w-4 shrink-0" />
+					<span class="truncate">Arranged as <strong>{layoutUndo.label}</strong></span>
+					<button
+						onclick={undoLayout}
+						class="flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-semibold"
+						title="Put everything back (Esc)"
+					>
+						<Icon name="reset" class="h-3.5 w-3.5" />
+						Undo
+					</button>
+				</div>
 			{/if}
 
 			<!-- Version preview banner. -->
@@ -1555,7 +1642,12 @@
 					class="pointer-events-none absolute left-3 top-3 z-20 flex max-h-[calc(100%-9.5rem)] w-[min(18rem,calc(100%-5.5rem))] flex-col gap-2 sm:left-4 sm:top-4"
 				>
 					<div class="pointer-events-auto">
-						<SearchBar bind:this={searchRef} concepts={viewConcepts} onSelect={searchSelect} />
+						<SearchBar
+							bind:this={searchRef}
+							concepts={viewConcepts}
+							onSelect={searchSelect}
+							hrefFor={(id) => shareUrlFor('concept', id)}
+						/>
 					</div>
 
 					{#if showLegend}
@@ -1733,6 +1825,19 @@
 		{/if}
 	</div>
 
+	<!-- Floating feedback tab, pinned to the page edge in the gutter beside the map. -->
+	<a
+		href={FEEDBACK_URL}
+		target="_blank"
+		rel="noopener noreferrer"
+		class="feedback-tab fixed z-40 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider max-sm:bottom-20 max-sm:right-3 max-sm:rounded-full max-sm:p-2.5 sm:right-0 sm:top-1/2 sm:-translate-y-1/2 sm:rounded-l-lg sm:px-1.5 sm:py-3"
+		title="Send feedback (opens a form in a new tab)"
+		aria-label="Send feedback"
+	>
+		<Icon name="message" class="h-4 w-4 sm:rotate-90" />
+		<span class="max-sm:hidden" style="writing-mode: vertical-rl">Feedback</span>
+	</a>
+
 	{#if contextMenu}
 		<MapContextMenu x={contextMenu.x} y={contextMenu.y} sections={menuSections} onClose={() => (contextMenu = null)} />
 	{/if}
@@ -1794,6 +1899,16 @@
 			onDeleteComment={deleteRelationComment}
 			refreshKey={commentsRefreshKey}
 			canComment={editable}
+		/>
+	{/if}
+
+	{#if layoutPicker}
+		<LayoutPicker
+			concepts={viewConcepts}
+			centerId={layoutPicker.center}
+			readOnly={!editable}
+			onPick={applyLayout}
+			onClose={() => (layoutPicker = null)}
 		/>
 	{/if}
 
@@ -2012,6 +2127,30 @@
 	}
 	:global(.dark) .share-btn:hover {
 		box-shadow: 3px 3px 0 var(--memphis-cyan);
+	}
+
+	.feedback-tab {
+		border: 2px solid var(--memphis-ink);
+		background: var(--memphis-yellow);
+		color: var(--memphis-ink);
+		box-shadow: -3px 3px 0 var(--memphis-ink);
+		transition: padding 150ms ease;
+	}
+	.feedback-tab:hover {
+		background: var(--memphis-pink);
+		color: white;
+	}
+	@media (min-width: 640px) {
+		.feedback-tab {
+			border-right: 0;
+		}
+		.feedback-tab:hover {
+			padding-right: 0.6rem;
+		}
+	}
+	.feedback-tab:focus-visible {
+		outline: 2px solid var(--memphis-pink);
+		outline-offset: 2px;
 	}
 
 	.view-only-chip {

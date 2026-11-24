@@ -52,7 +52,8 @@
 			accent: 'var(--memphis-purple)',
 			rows: [
 				{ keys: ['Set center'], text: 'fades concepts not linked to it — Esc clears' },
-				{ keys: ['Arrange'], text: 'lays the map out in rings around the center' },
+				{ keys: ['A'], text: 'arrange the map — 13 layouts, 4 built around a center concept (undo straight after)' },
+				{ keys: ['R'], text: 'jump to a random concept' },
 				{ keys: ['Legend'], text: 'click a relation type to show or hide it' },
 				{ keys: ['F'], text: 'full screen' }
 			]

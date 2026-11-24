@@ -4,10 +4,13 @@
 
 	let {
 		concepts,
-		onSelect
+		onSelect,
+		hrefFor
 	}: {
 		concepts: ClientConcept[];
 		onSelect: (id: string) => void;
+		/** Deep link to a concept's details, so results are real links (copy, open in new tab). */
+		hrefFor?: (id: string) => string;
 	} = $props();
 
 	let query = $state('');
@@ -97,19 +100,34 @@
 				<p class="px-3 py-2 text-sm text-slate-400">No concepts match "{query}".</p>
 			{:else}
 				{#each results as c, i (c.id)}
-					<button
-						type="button"
-						role="option"
-						aria-selected={i === active}
-						onmouseenter={() => (active = i)}
-						onclick={() => choose(c)}
-						class="block w-full rounded-lg px-3 py-2 text-left {i === active ? 'bg-slate-100' : ''}"
-					>
-						<span class="block truncate text-sm font-semibold text-slate-800">{c.name}</span>
-						{#if c.definition}
-							<span class="block truncate text-xs text-slate-500">{c.definition}</span>
-						{/if}
-					</button>
+					<div class="flex items-stretch gap-1 rounded-lg {i === active ? 'bg-slate-100' : ''}" role="presentation" onmouseenter={() => (active = i)}>
+						<a
+							href={hrefFor?.(c.id) ?? `?concept=${c.id}`}
+							role="option"
+							aria-selected={i === active}
+							onclick={(e) => {
+								// Plain click: open the details in place; modified clicks open a new tab.
+								if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+								e.preventDefault();
+								choose(c);
+							}}
+							class="block min-w-0 flex-1 px-3 py-2 text-left"
+							title="Show {c.name} and its details"
+						>
+							<span class="block truncate text-sm font-semibold text-slate-800">{c.name}</span>
+							{#if c.definition}
+								<span class="block truncate text-xs text-slate-500">{c.definition}</span>
+							{/if}
+						</a>
+						<a
+							href="/concepts/{c.id}"
+							class="flex shrink-0 items-center px-2 text-slate-400 hover:text-slate-700"
+							title="Open the full concept entry"
+							aria-label="Open the full entry for {c.name}"
+						>
+							<Icon name="external" class="h-3.5 w-3.5" />
+						</a>
+					</div>
 				{/each}
 			{/if}
 		</div>

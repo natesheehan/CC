@@ -7,12 +7,14 @@
 		forceCollide,
 		forceX,
 		forceY,
+		forceRadial,
 		type Simulation,
 		type SimulationNodeDatum,
 		type SimulationLinkDatum
 	} from 'd3-force';
 	import { RELATION_META, type RelationType } from '$lib/shared/relations';
 	import Icon from './Icon.svelte';
+	import { computeLayout, depthsFrom, type LayoutId, type LayoutLink, type Positions } from '$lib/shared/layouts';
 	import type { ClientConcept, ClientRelation, LivePeer } from '$lib/shared/types';
 
 	interface SimNode extends SimulationNodeDatum {
@@ -41,6 +43,7 @@
 		onBackgroundClick,
 		fullscreen = false,
 		onToggleFullscreen,
+		onRandomConcept,
 		peers = [],
 		onCursorMove
 	}: {
@@ -61,6 +64,8 @@
 		onBackgroundClick?: () => void;
 		fullscreen?: boolean;
 		onToggleFullscreen?: () => void;
+		/** Shows a "go to a random concept" button in the bottom toolbar. */
+		onRandomConcept?: () => void;
 		/** Other people live on this map: drawn as cursors and rings on what they're on. */
 		peers?: LivePeer[];
 		/** Local pointer position in graph space (null when it leaves the canvas). */
@@ -368,6 +373,8 @@
 			simNodes = [...simNodes];
 		})
 		.on('end', () => {
+			// A layout's temporary pull (e.g. Orbit's rings) only shapes that one run.
+			if (simulation.force('layout')) simulation.force('layout', null);
 			for (const n of simNodes) {
 				if (n.fx == null && n.x != null && n.y != null) {
 					onNodeMoved(n.id, Math.round(n.x), Math.round(n.y));
@@ -705,57 +712,120 @@
 		rotation = (rotation + 90) % 360;
 	}
 
+	// --- layouts ---------------------------------------------------------------
+	// See $lib/shared/layouts. Fixed layouts tween every node to its target and
+	// pin it there; 'organic' and 'orbit' let the force simulation settle.
+	// Either way the final positions go out through onNodeMoved (and so are
+	// saved for everyone). Each returns the previous positions, for undo.
+
+	let layoutFrame = 0;
+
+	/** Where every node is right now. */
+	export function currentPositions(): Positions {
+		const pos: Positions = new Map();
+		for (const n of simNodes) {
+			const x = n.fx ?? n.x;
+			const y = n.fy ?? n.y;
+			if (x != null && y != null) pos.set(n.id, { x: Math.round(x), y: Math.round(y) });
+		}
+		return pos;
+	}
+
+	function layoutLinks(): LayoutLink[] {
+		return simLinks.flatMap((l) => {
+			const source = resolveEnd(l.source)?.id;
+			const target = resolveEnd(l.target)?.id;
+			if (!source || !target) return [];
+			return [{ source, target, directed: l.direction !== 'both' && metaFor(l.type).directional !== false }];
+		});
+	}
+
+	/** Animate nodes to `positions`, pin them, save them, then frame the result. */
+	export function applyPositions(positions: Positions, opts: { fit?: boolean } = {}) {
+		cancelAnimationFrame(layoutFrame);
+		simulation.stop();
+		const tweens = simNodes
+			.filter((n) => positions.has(n.id))
+			.map((n) => ({ node: n, fromX: n.x ?? 0, fromY: n.y ?? 0, to: positions.get(n.id)! }));
+		const start = performance.now();
+		const duration = tweens.length > 400 ? 0 : 650;
+		const frame = (t: number) => {
+			const k = duration === 0 ? 1 : Math.min(1, (t - start) / duration);
+			const ease = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+			for (const tw of tweens) {
+				tw.node.x = tw.node.fx = tw.fromX + (tw.to.x - tw.fromX) * ease;
+				tw.node.y = tw.node.fy = tw.fromY + (tw.to.y - tw.fromY) * ease;
+				tw.node.vx = tw.node.vy = 0;
+			}
+			simNodes = [...simNodes];
+			if (k < 1) {
+				layoutFrame = requestAnimationFrame(frame);
+				return;
+			}
+			for (const tw of tweens) onNodeMoved(tw.node.id, tw.to.x, tw.to.y);
+			if (opts.fit !== false) fitView();
+		};
+		layoutFrame = requestAnimationFrame(frame);
+	}
+
+	/**
+	 * Arrange the map. `centerId` is required by the centered layouts
+	 * (returns null without one). Returns the positions before the change.
+	 */
+	export function runLayout(id: LayoutId, centerId?: string | null): Positions | null {
+		const before = currentPositions();
+		if (id === 'organic') {
+			reArrange();
+			return before;
+		}
+		if (id === 'orbit') {
+			if (!centerId || !nodesById.has(centerId)) return null;
+			orbit(centerId);
+			return before;
+		}
+		const nodes = simNodes.map((n) => ({ id: n.id, name: n.name, x: n.fx ?? n.x, y: n.fy ?? n.y }));
+		const target = computeLayout(id, nodes, layoutLinks(), { center: centerId });
+		if (!target) return null;
+		applyPositions(target);
+		return before;
+	}
+
 	export function reArrange() {
+		cancelAnimationFrame(layoutFrame);
 		for (const n of simNodes) {
 			n.fx = null;
 			n.fy = null;
 		}
 		simulation.alpha(1).restart();
+		setTimeout(fitView, 1200);
 	}
 
+	/** Organic layout held in rings by distance from the (pinned) center. */
+	function orbit(centerId: string) {
+		cancelAnimationFrame(layoutFrame);
+		const center = nodesById.get(centerId)!;
+		const cx = center.fx ?? center.x ?? width / 2;
+		const cy = center.fy ?? center.y ?? height / 2;
+		const nodes = simNodes.map((n) => ({ id: n.id, name: n.name }));
+		const depth = depthsFrom(nodes, layoutLinks(), centerId);
+		for (const n of simNodes) {
+			n.fx = null;
+			n.fy = null;
+		}
+		center.x = center.fx = cx;
+		center.y = center.fy = cy;
+		onNodeMoved(centerId, Math.round(cx), Math.round(cy));
+		simulation.force(
+			'layout',
+			forceRadial<SimNode>((n) => (depth.get(n.id) ?? 1) * 190, cx, cy).strength(0.9)
+		);
+		simulation.alpha(1).restart();
+		setTimeout(fitView, 1400);
+	}
+
+	/** Kept for older callers: the "Rings" layout around a concept. */
 	export function reArrangeAround(nodeId: string) {
-		const center = simNodes.find((node) => node.id === nodeId);
-		if (!center) return;
-
-		const distances = new Map<string, number>([[nodeId, 0]]);
-		const queue = [nodeId];
-		while (queue.length > 0) {
-			const current = queue.shift()!;
-			const nextDistance = distances.get(current)! + 1;
-			for (const link of simLinks) {
-				const source = resolveEnd(link.source)?.id;
-				const target = resolveEnd(link.target)?.id;
-				const next = source === current ? target : target === current ? source : undefined;
-				if (next && !distances.has(next)) {
-					distances.set(next, nextDistance);
-					queue.push(next);
-				}
-			}
-		}
-
-		const layers = new Map<number, SimNode[]>();
-		for (const node of simNodes) {
-			const distance = distances.get(node.id) ?? Math.max(2, distances.size);
-			const layer = layers.get(distance) ?? [];
-			layer.push(node);
-			layers.set(distance, layer);
-		}
-
-		const centerX = width / 2;
-		const centerY = height / 2;
-		center.x = center.fx = centerX;
-		center.y = center.fy = centerY;
-		for (const [distance, nodes] of layers) {
-			if (distance === 0) continue;
-			const radius = Math.min(width, height) * (distance === 1 ? 0.24 : 0.2 + distance * 0.1);
-			nodes.forEach((node, index) => {
-				const angle = (index / nodes.length) * Math.PI * 2 - Math.PI / 2;
-				node.x = node.fx = centerX + Math.cos(angle) * radius;
-				node.y = node.fy = centerY + Math.sin(angle) * radius;
-			});
-		}
-		simNodes = [...simNodes];
-		simulation.alpha(0.35).restart();
+		runLayout('rings', nodeId);
 	}
 
 	// --- image export -----------------------------------------------------------
@@ -1232,6 +1302,18 @@
 		<button type="button" class="map-view-btn" onclick={resetView} aria-label="Reset view" title="Reset view">
 			<Icon name="reset" />
 		</button>
+		{#if onRandomConcept}
+			<div class="mx-0.5 h-5 w-px bg-slate-200"></div>
+			<button
+				type="button"
+				class="map-view-btn"
+				onclick={onRandomConcept}
+				aria-label="Go to a random concept"
+				title="Go to a random concept (R)"
+			>
+				<Icon name="dice" />
+			</button>
+		{/if}
 		{#if onToggleFullscreen}
 			<div class="mx-0.5 h-5 w-px bg-slate-200"></div>
 			<button
