@@ -192,6 +192,9 @@
 	.dark .map-legend .text-slate-500 { color: #cbd5e1; }
 	.dark .map-legend .text-slate-300 { color: #94a3b8; }
 	.dark .map-legend .border-slate-100 { border-color: #334155; }
+	.dark .bg-amber-50 { background-color: rgb(245 158 11 / 0.12); }
+	.dark .border-amber-200 { border-color: rgb(245 158 11 / 0.35); }
+	.dark .text-amber-800 { color: #fde68a; }
 }
 
 .theme-toggle {
@@ -583,6 +586,80 @@
 }
 .graph-canvas .node-label {
 	color: var(--node-text);
+}
+
+/* --- live collaborators ------------------------------------------------- */
+.graph-canvas .peer-ring {
+	fill: none;
+	stroke: var(--peer);
+	stroke-width: 3;
+	stroke-dasharray: 6 5;
+	pointer-events: none;
+	transform-box: fill-box;
+	transform-origin: center;
+	animation: peer-ring-spin 12s linear infinite;
+}
+.graph-canvas .peer-ring.editing {
+	stroke-dasharray: none;
+	stroke-width: 3.5;
+	animation: peer-ring-pulse 1.6s ease-in-out infinite;
+}
+@keyframes peer-ring-spin {
+	to { transform: rotate(360deg); }
+}
+@keyframes peer-ring-pulse {
+	0%, 100% { stroke-opacity: 1; }
+	50% { stroke-opacity: 0.45; }
+}
+.graph-canvas .peer-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.2rem;
+	max-width: 7rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	border-radius: 9999px;
+	background: var(--peer);
+	padding: 0.05rem 0.45rem;
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 1.4;
+	color: white;
+	box-shadow: 1px 1px 0 rgb(0 0 0 / 0.25);
+}
+.graph-canvas .peer-tag.more {
+	background: #64748b;
+}
+.graph-canvas .peer-cursor {
+	will-change: transform;
+}
+.graph-canvas .peer-cursor svg {
+	display: block;
+	fill: var(--peer);
+	stroke: white;
+	stroke-width: 1.5;
+	stroke-linejoin: round;
+	filter: drop-shadow(1px 1px 1px rgb(0 0 0 / 0.3));
+}
+.graph-canvas .peer-cursor span {
+	position: absolute;
+	left: 14px;
+	top: 14px;
+	white-space: nowrap;
+	border-radius: 9999px;
+	background: var(--peer);
+	padding: 0.05rem 0.45rem;
+	font-size: 11px;
+	font-weight: 700;
+	color: white;
+	box-shadow: 1px 1px 0 rgb(0 0 0 / 0.25);
+}
+@media (prefers-reduced-motion: reduce) {
+	.graph-canvas .peer-ring,
+	.graph-canvas .peer-ring.editing {
+		animation: none;
+	}
 }
 
 .graph-canvas .minimap-node {

@@ -12,8 +12,11 @@
 		defaultSourceId,
 		onSubmit,
 		onClose,
-		onManageTypes
+		onManageTypes,
+		notice = null
 	}: {
+		/** Live-collaboration warning, e.g. someone else is editing this link. */
+		notice?: string | null;
 		mode?: 'create' | 'edit';
 		initial?: ClientRelation;
 		concepts: ClientConcept[];
@@ -104,6 +107,12 @@
 				</button>
 			{/if}
 		</div>
+		{#if notice}
+			<div class="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-6 py-2.5 text-sm text-amber-800" role="status">
+				<span aria-hidden="true">⚠</span>
+				<span>{notice}</span>
+			</div>
+		{/if}
 
 		<form id="relation-form" onsubmit={handleSubmit} class="space-y-4 px-6 py-4">
 			<div>

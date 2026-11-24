@@ -23,6 +23,13 @@ attributed to a signed-in user and recorded in an activity log.
 - **Tracking** — every concept and relation records who created/last edited it and when;
   a per-map activity feed lists every change in order. Dragging a node to reposition it
   is *not* logged as a content edit — only actual edits to a concept's fields are.
+- **Live collaboration** — see who else is on a map right now (avatars in the map header),
+  their cursors on the canvas, and a ring on whichever concept each person is looking at or
+  editing. Changes by others appear without a reload (with a toast you can click to jump to
+  them), nodes they drag glide into place, and edit dialogs warn you if someone else is
+  editing — or has just saved — the same concept or link. You can jump to or *follow*
+  any collaborator's view. Works over a lightweight heartbeat (`POST /maps/:id/live`), so it
+  needs no extra infrastructure on serverless hosting.
 - **Simple named sign-in** — no passwords. Enter a display name once; a cookie keeps you
   signed in as that person so your edits are attributed correctly.
 - **Persistent storage** — SQLite-compatible storage (libSQL), so maps survive restarts
@@ -91,12 +98,32 @@ server works, or point `DATABASE_URL` at a local file path
 — just swap the adapter in `svelte.config.js` back to `@sveltejs/adapter-node` if you
 want a plain long-running server instead of serverless functions.
 
+### Keeping hosting costs down
+
+- **Put functions next to the database.** Set `VERCEL_FUNCTION_REGIONS` (build-time env var
+  in Vercel → Settings → Environment Variables) to the Vercel region closest to your Turso
+  database, e.g. `fra1` for a Frankfurt database, `iad1` for US East, `dub1` for Ireland.
+  Find the database region in the Turso dashboard or with `turso db show <name>`. Every
+  request makes at least one database round trip and Vercel bills for the time a function
+  is alive, so a cross-region round trip (~50–150 ms) is paid on every request. Unset =
+  Vercel's project default (no change).
+- **Small endpoints use 256 MB.** The live heartbeat, node positions and the map mutation
+  endpoints share one low-memory function (`src/lib/server/functionConfig.ts`) — a Pro /
+  Enterprise feature. After deploying, check the function's memory in the Vercel dashboard;
+  if the project uses Fluid compute CPU presets, Vercel may apply the preset instead.
+- **Schema setup runs once per schema change, not per cold start.** A fingerprint of the
+  schema SQL is stored in `schema_meta`; cold starts compare it with one read and only run
+  the full setup when it differs.
+- `scripts/live-load-test.mjs` measures the live-collaboration cost (requests, writes,
+  latency, DB time) against a running server — point it at a throwaway database.
+
 Environment variables:
 
 | Variable              | Default                      | Purpose                                        |
 | ---------------------- | ------------------------------ | ------------------------------------------------- |
 | `DATABASE_URL`        | `file:./data/conceptmap.db`   | libSQL connection URL (local file or Turso)      |
 | `DATABASE_AUTH_TOKEN` | _(unset)_                      | Auth token, required for a remote Turso database |
+| `VERCEL_FUNCTION_REGIONS` | _(unset)_                  | Build-time: comma-separated Vercel regions to pin functions to (e.g. `fra1`) |
 
 ### Type-checking & tests
 

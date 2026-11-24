@@ -37,6 +37,41 @@ export interface RateLimitResult {
  * see `rateLimitUserWrite` and `checkLoginRateLimit` below for the two
  * flavors used elsewhere in this app.
  */
+/**
+ * The bucket upsert as an un-executed statement, so callers can put it in the
+ * same batch as the work it guards (see `withinRateLimit`).
+ */
+export function rateLimitUpsert(key: string, { windowMs }: Pick<RateLimitOptions, 'windowMs'>, now = Date.now()) {
+	const windowStart = Math.floor(now / windowMs) * windowMs;
+	return db
+		.insert(rateLimits)
+		.values({ key, windowStart, count: 1 })
+		.onConflictDoUpdate({
+			target: rateLimits.key,
+			set: {
+				windowStart: sql`excluded.window_start`,
+				count: sql`CASE WHEN ${rateLimits.windowStart} = excluded.window_start THEN ${rateLimits.count} + 1 ELSE 1 END`
+			}
+		})
+		.returning({ count: rateLimits.count, windowStart: rateLimits.windowStart });
+}
+
+/**
+ * SQL condition that is true while `key` is within its limit. Used in the
+ * WHERE clause of writes batched *after* `rateLimitUpsert`, so the check and
+ * the guarded work share one round trip and over-limit writes never apply.
+ */
+export function withinRateLimit(key: string, limit: number) {
+	return sql`(SELECT ${rateLimits.count} FROM ${rateLimits} WHERE ${rateLimits.key} = ${key}) <= ${limit}`;
+}
+
+export const USER_WRITE_LIMIT: RateLimitOptions = { limit: 60, windowMs: 60_000 };
+export const userWriteKey = (userId: string) => `write:${userId}`;
+
+export function retryAfterSeconds(windowStart: number, windowMs: number, now = Date.now()): number {
+	return Math.max(1, Math.ceil((windowStart + windowMs - now) / 1000));
+}
+
 export async function checkRateLimit(
 	key: string,
 	{ limit, windowMs }: RateLimitOptions
@@ -82,7 +117,7 @@ export async function checkRateLimit(
  * abuse in general — not fine-tuning per-endpoint quotas.
  */
 export async function rateLimitUserWrite(userId: string): Promise<void> {
-	const result = await checkRateLimit(`write:${userId}`, { limit: 60, windowMs: 60_000 });
+	const result = await checkRateLimit(userWriteKey(userId), USER_WRITE_LIMIT);
 	if (!result.allowed) {
 		throw error(429, `Too many requests. Please try again in ${result.retryAfterSeconds}s.`);
 	}

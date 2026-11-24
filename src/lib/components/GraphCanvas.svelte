@@ -13,7 +13,7 @@
 	} from 'd3-force';
 	import { RELATION_META, type RelationType } from '$lib/shared/relations';
 	import Icon from './Icon.svelte';
-	import type { ClientConcept, ClientRelation } from '$lib/shared/types';
+	import type { ClientConcept, ClientRelation, LivePeer } from '$lib/shared/types';
 
 	interface SimNode extends SimulationNodeDatum {
 		id: string;
@@ -40,7 +40,9 @@
 		onOpen,
 		onBackgroundClick,
 		fullscreen = false,
-		onToggleFullscreen
+		onToggleFullscreen,
+		peers = [],
+		onCursorMove
 	}: {
 		concepts: ClientConcept[];
 		relations: ClientRelation[];
@@ -59,7 +61,124 @@
 		onBackgroundClick?: () => void;
 		fullscreen?: boolean;
 		onToggleFullscreen?: () => void;
+		/** Other people live on this map: drawn as cursors and rings on what they're on. */
+		peers?: LivePeer[];
+		/** Local pointer position in graph space (null when it leaves the canvas). */
+		onCursorMove?: (point: { x: number; y: number } | null) => void;
 	} = $props();
+
+	// --- live collaborators ---------------------------------------------------
+	// Peers grouped by the node they're on, so each node can draw one ring per
+	// person (solid while they're editing it, dashed while just looking).
+	const peersByNode = $derived.by(() => {
+		const byNode = new Map<string, { peer: LivePeer; editing: boolean }[]>();
+		for (const peer of peers) {
+			const editingId = peer.editing?.startsWith('concept:') ? peer.editing.slice(8) : null;
+			const nodeId = editingId ?? peer.focusId;
+			if (!nodeId) continue;
+			const list = byNode.get(nodeId) ?? [];
+			list.push({ peer, editing: editingId === nodeId });
+			byNode.set(nodeId, list);
+		}
+		return byNode;
+	});
+
+	// Remote cursors arrive every poll (~1.5s); ease each displayed cursor
+	// toward its latest reported point so they glide instead of jumping. Kept
+	// in graph space so panning/zooming locally stays instantly correct.
+	let cursorShown: Record<string, { x: number; y: number }> = $state({});
+	let cursorFrame = 0;
+
+	function stepCursors() {
+		cursorFrame = 0;
+		const next: Record<string, { x: number; y: number }> = {};
+		let moving = false;
+		for (const peer of peers) {
+			if (!peer.cursor) continue;
+			const prev = cursorShown[peer.clientId];
+			if (!prev) {
+				next[peer.clientId] = { ...peer.cursor };
+				continue;
+			}
+			const dx = peer.cursor.x - prev.x;
+			const dy = peer.cursor.y - prev.y;
+			if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+				next[peer.clientId] = { ...peer.cursor };
+			} else {
+				next[peer.clientId] = { x: prev.x + dx * 0.12, y: prev.y + dy * 0.12 };
+				moving = true;
+			}
+		}
+		cursorShown = next;
+		if (moving) cursorFrame = requestAnimationFrame(stepCursors);
+	}
+
+	$effect(() => {
+		void peers; // re-run whenever a new set of peer positions arrives
+		untrack(() => {
+			if (!cursorFrame && typeof requestAnimationFrame !== 'undefined') cursorFrame = requestAnimationFrame(stepCursors);
+		});
+		return () => {
+			if (cursorFrame) cancelAnimationFrame(cursorFrame);
+			cursorFrame = 0;
+		};
+	});
+
+	const visibleCursors = $derived(
+		peers
+			.filter((p) => p.cursor && cursorShown[p.clientId])
+			.map((p) => ({ peer: p, local: graphToLocal(cursorShown[p.clientId].x, cursorShown[p.clientId].y) }))
+			.filter(({ local }) => local.x > -40 && local.y > -40 && local.x < width + 40 && local.y < height + 40)
+	);
+
+	let lastCursorSent = 0;
+	function reportCursor(e: PointerEvent) {
+		if (!onCursorMove || e.pointerType === 'touch') return;
+		const now = performance.now();
+		if (now - lastCursorSent < 50) return;
+		lastCursorSent = now;
+		const g = screenToGraph(e.clientX, e.clientY);
+		onCursorMove({ x: Math.round(g.x), y: Math.round(g.y) });
+	}
+
+	/**
+	 * Apply node positions changed by someone else. Eases nodes to their new
+	 * spots rather than snapping, and never fights a node being dragged here.
+	 */
+	export function applyRemoteMoves(moves: { id: string; x: number | null; y: number | null }[]) {
+		const tweens: { node: SimNode; fromX: number; fromY: number; toX: number; toY: number }[] = [];
+		for (const m of moves) {
+			if (m.x == null || m.y == null || m.id === draggingId) continue;
+			const node = nodesById.get(m.id);
+			if (!node) continue;
+			// Our own drags/layout come back too — ignore anything already there.
+			const curX = node.fx ?? node.x;
+			const curY = node.fy ?? node.y;
+			if (curX != null && curY != null && Math.abs(curX - m.x) < 1 && Math.abs(curY - m.y) < 1) continue;
+			tweens.push({ node, fromX: node.x ?? m.x, fromY: node.y ?? m.y, toX: m.x, toY: m.y });
+		}
+		if (tweens.length === 0) return;
+		const start = performance.now();
+		const duration = 450;
+		const frame = (t: number) => {
+			const k = Math.min(1, (t - start) / duration);
+			const ease = 1 - Math.pow(1 - k, 3);
+			for (const tw of tweens) {
+				if (tw.node.id === draggingId) continue;
+				tw.node.x = tw.node.fx = tw.fromX + (tw.toX - tw.fromX) * ease;
+				tw.node.y = tw.node.fy = tw.fromY + (tw.toY - tw.fromY) * ease;
+			}
+			simNodes = [...simNodes];
+			if (k < 1) requestAnimationFrame(frame);
+		};
+		requestAnimationFrame(frame);
+	}
+
+	/** Pan (without changing zoom) so a graph-space point sits in the middle. */
+	export function focusPoint(x: number, y: number) {
+		const { x: rx, y: ry } = rotateAndScale(x, y, zoom);
+		pan = { x: width / 2 - rx, y: height / 2 - ry };
+	}
 
 	// A brief pulsing ring used to point out a node (e.g. a search result).
 	let flashingId: string | null = $state(null);
@@ -272,13 +391,24 @@
 	// again — an infinite loop. `untrack` lets us read the current node list
 	// to reconcile against, without subscribing to its changes.
 	$effect(() => {
-		// Reactive dependencies: concepts, relations, width, height.
+		// Reactive dependencies: concepts, relations, width, height — and
+		// nothing else. Everything below runs untracked.
 		const liveConcepts = concepts;
 		const liveRelations = relations;
 		const w = width;
 		const h = height;
+		// Untracked as a whole, not piecemeal: after the first run, simNodes
+		// holds $state proxies, and both this code (existing.fx) and d3's
+		// simulation.nodes() (x, y, vx, vy) read their fields. Tracked, those
+		// reads subscribed this effect to values d3 rewrites on every tick, so
+		// any second reconcile (new data, a resize) restarted the simulation
+		// forever: it never settled, burned CPU every frame, and never fired
+		// 'end' to persist auto-layout positions.
+		untrack(() => reconcile(liveConcepts, liveRelations, w, h));
+	});
 
-		const currentNodes = untrack(() => simNodes);
+	function reconcile(liveConcepts: ClientConcept[], liveRelations: ClientRelation[], w: number, h: number) {
+		const currentNodes = simNodes;
 		const existingById = new Map(currentNodes.map((n) => [n.id, n]));
 		const nextNodes: SimNode[] = [];
 		let hasNewUnpinned = false;
@@ -331,7 +461,7 @@
 		simulation.nodes(nextNodes);
 		linkForce.links(nextLinks);
 		simulation.alpha(hasNewUnpinned ? 0.8 : 0.2).restart();
-	});
+	}
 
 	// --- coordinate helpers ---------------------------------------------------
 	// The graph content is drawn under `translate(pan) rotate(rotation) scale(zoom)`,
@@ -879,7 +1009,11 @@
 	bind:clientHeight={height}
 	class="graph-canvas relative h-full w-full touch-none overflow-hidden"
 	onpointerdown={onBackgroundPointerDown}
-	onpointermove={onBackgroundPointerMove}
+	onpointermove={(e) => {
+		onBackgroundPointerMove(e);
+		reportCursor(e);
+	}}
+	onpointerleave={() => onCursorMove?.(null)}
 	onpointerup={onBackgroundPointerUp}
 	onpointercancel={onBackgroundPointerUp}
 	onpointerdowncapture={onTouchPointerDown}
@@ -990,6 +1124,15 @@
 						{#if flashingId === node.id}
 							<circle r={isCentral ? 48 : 40} class="flash-ring" />
 						{/if}
+						{#each peersByNode.get(node.id) ?? [] as { peer, editing }, i (peer.clientId)}
+							<circle
+								r={(isCentral ? 52 : 44) + i * 5}
+								class="peer-ring {editing ? 'editing' : ''}"
+								style="--peer: {peer.color}"
+							>
+								<title>{peer.name} is {editing ? 'editing' : 'looking at'} this</title>
+							</circle>
+						{/each}
 						<circle
 							r={isCentral ? 48 : isSelected ? 40 : 36}
 							class="concept-node {isSelected ? 'selected' : ''} {isCentral ? 'central' : ''} {hoveredNodeId === node.id ? 'hovered' : ''}"
@@ -1000,6 +1143,28 @@
 							</div>
 						</foreignObject>
 						<title>{node.name}</title>
+					</g>
+				{/if}
+			{/each}
+
+			<!-- Name tags for collaborators on a node, upright and constant-size. -->
+			{#each [...peersByNode] as [nodeId, onNode] (nodeId)}
+				{@const node = nodesById.get(nodeId)}
+				{#if node && node.x != null && node.y != null}
+					<g
+						transform="translate({node.x} {node.y}) rotate({-rotation}) scale({1 / zoom}) translate(0 {-(centralId === nodeId ? 52 : 44) * zoom - 6 - (onNode.length - 1) * 5 * zoom})"
+						class="pointer-events-none"
+					>
+						<foreignObject x="-110" y="-22" width="220" height="22">
+							<div class="flex h-full items-end justify-center gap-1">
+								{#each onNode.slice(0, 3) as { peer, editing } (peer.clientId)}
+									<span class="peer-tag" style="--peer: {peer.color}">
+										{#if editing}<span aria-hidden="true">✎</span>{/if}{peer.name}
+									</span>
+								{/each}
+								{#if onNode.length > 3}<span class="peer-tag more">+{onNode.length - 3}</span>{/if}
+							</div>
+						</foreignObject>
 					</g>
 				{/if}
 			{/each}
@@ -1025,6 +1190,16 @@
 			{/each}
 		</g>
 	</svg>
+
+	<!-- Live cursors of other people on this map. -->
+	{#each visibleCursors as { peer, local } (peer.clientId)}
+		<div class="peer-cursor pointer-events-none absolute left-0 top-0 z-[25]" style="transform: translate({local.x}px, {local.y}px); --peer: {peer.color}">
+			<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+				<path d="M2 1.5 L15 8.5 L9 10 L6.5 16 Z" />
+			</svg>
+			<span>{peer.name}</span>
+		</div>
+	{/each}
 
 	<!-- Zoom / rotate controls. `onpointerdown|stopPropagation` here is what
 	     makes these buttons clickable at all: without it, a pointerdown on a

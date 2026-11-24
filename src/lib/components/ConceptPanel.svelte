@@ -16,8 +16,11 @@
 		onSelectConcept,
 		onDeleteRelation,
 		onEditRelation,
-		onOpenComments
+		onOpenComments,
+		livePeers = []
 	}: {
+		/** People live on the map who are on this concept right now. */
+		livePeers?: { clientId: string; name: string; color: string; editing: boolean }[];
 		concept: ClientConcept;
 		concepts: ClientConcept[];
 		relations: ClientRelation[];
@@ -129,6 +132,23 @@
 			✕
 		</button>
 	</div>
+
+	{#if livePeers.length > 0}
+		<div class="flex flex-wrap items-center gap-1.5 border-b border-slate-100 px-4 py-2 text-xs text-slate-500" role="status">
+			<span class="relative mr-0.5 flex h-2 w-2" aria-hidden="true">
+				<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
+				<span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+			</span>
+			{#each livePeers as p (p.clientId)}
+				<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold text-white" style="background: {p.color}">
+					{p.name}{p.editing ? ' ✎' : ''}
+				</span>
+			{/each}
+			<span>
+				{livePeers.some((p) => p.editing) ? 'editing' : 'viewing'} this now
+			</span>
+		</div>
+	{/if}
 
 	<div class="flex-1 space-y-5 p-4">
 		<section>

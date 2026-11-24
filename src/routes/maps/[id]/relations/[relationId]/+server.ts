@@ -6,6 +6,11 @@ import { logActivity } from '$lib/server/activity';
 import { RELATION_TYPES, relationLabel } from '$lib/shared/relations';
 import type { RequestHandler } from './$types';
 import { rateLimitUserWrite } from '$lib/server/rateLimit';
+import type { Config } from '@sveltejs/adapter-vercel';
+import { LIGHT_FUNCTION_CONFIG } from '$lib/server/functionConfig';
+
+/** Small JSON endpoint: shares the low-memory function with the live heartbeat. */
+export const config: Config = LIGHT_FUNCTION_CONFIG;
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');

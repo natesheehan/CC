@@ -8,6 +8,11 @@ import { logActivity } from '$lib/server/activity';
 import type { RequestHandler } from './$types';
 import type { CustomRelationType } from '$lib/shared/relations';
 import { rateLimitUserWrite } from '$lib/server/rateLimit';
+import type { Config } from '@sveltejs/adapter-vercel';
+import { LIGHT_FUNCTION_CONFIG } from '$lib/server/functionConfig';
+
+/** Small JSON endpoint: shares the low-memory function with the live heartbeat. */
+export const config: Config = LIGHT_FUNCTION_CONFIG;
 
 function slugify(label: string): string {
 	return (

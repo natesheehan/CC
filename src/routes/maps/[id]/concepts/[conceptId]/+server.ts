@@ -5,12 +5,35 @@ import { concepts, maps, users } from '$lib/server/db/schema';
 import { logActivity } from '$lib/server/activity';
 import type { RequestHandler } from './$types';
 import { rateLimitUserWrite } from '$lib/server/rateLimit';
+import { parsePositions, savePositions } from '$lib/server/positions';
+import { LIGHT_FUNCTION_CONFIG } from '$lib/server/functionConfig';
+import type { Config } from '@sveltejs/adapter-vercel';
+
+export const config: Config = LIGHT_FUNCTION_CONFIG;
 
 const CONTENT_FIELDS = ['name', 'definition', 'literatureLink', 'example', 'quizQuestion'] as const;
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Sign in required');
-	await rateLimitUserWrite(locals.user.id); 
+
+	const body = (await request.json()) as Record<string, unknown>;
+
+	// Fast path: a position-only update (numeric x and y, nothing else) is one
+	// batched round trip with no response body, instead of the full
+	// read-modify-read-back below. The map page now uses PATCH /positions,
+	// but this keeps older clients cheap too.
+	const keys = Object.keys(body);
+	if (keys.length === 2 && 'x' in body && 'y' in body && body.x !== null && body.y !== null) {
+		const positions = parsePositions({ positions: [{ id: params.conceptId, x: body.x, y: body.y }] });
+		if (!positions) throw error(400, 'Invalid position');
+		const result = await savePositions(params.id, locals.user.id, positions);
+		if (result.status === 'rate_limited') {
+			throw error(429, `Too many requests. Please try again in ${result.retryAfterSeconds}s.`);
+		}
+		return new Response(null, { status: 204 });
+	}
+
+	await rateLimitUserWrite(locals.user.id);
 
 	const existing = await db
 		.select()
@@ -19,7 +42,6 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		.get();
 	if (!existing) throw error(404, 'Concept not found');
 
-	const body = (await request.json()) as Record<string, unknown>;
 	const now = new Date();
 
 	const isContentEdit = CONTENT_FIELDS.some((f) => f in body);
@@ -43,6 +65,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if ('quizQuestion' in body) updates.quizQuestion = (body.quizQuestion as string)?.trim() || null;
 	if ('x' in body) updates.x = body.x === null ? null : Number(body.x);
 	if ('y' in body) updates.y = body.y === null ? null : Number(body.y);
+	if ('x' in body || 'y' in body) updates.movedAt = now.getTime();
 
 	if (isContentEdit) {
 		updates.updatedBy = locals.user.id;

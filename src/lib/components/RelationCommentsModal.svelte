@@ -13,8 +13,11 @@
 		onClose,
 		onLoadComments,
 		onAddComment,
-		onDeleteComment
+		onDeleteComment,
+		refreshKey = 0
 	}: {
+		/** Bump to re-fetch quietly (e.g. someone else commented live). */
+		refreshKey?: number;
 		relation: ClientRelation;
 		sourceName: string;
 		targetName: string;
@@ -37,6 +40,22 @@
 
 	$effect(() => {
 		untrack(() => loadComments());
+	});
+
+	// Live refresh: re-fetch in the background without the loading state, so
+	// the list (and any draft being typed) doesn't flicker.
+	let lastRefreshKey = untrack(() => refreshKey);
+	$effect(() => {
+		const key = refreshKey;
+		if (key === lastRefreshKey) return;
+		lastRefreshKey = key;
+		untrack(async () => {
+			try {
+				comments = await onLoadComments();
+			} catch {
+				// keep what we have; the next refresh will try again
+			}
+		});
 	});
 
 	async function loadComments() {

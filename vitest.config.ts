@@ -1,18 +1,7 @@
 import { defineConfig } from 'vitest/config';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
-import path from 'node:path';
 
-export default defineConfig({
-	plugins: [svelte()],
-	resolve: {
-		conditions: ['browser'],
-		alias: {
-			$lib: path.resolve('./src/lib')
-		}
-	},
-	test: {
-		environment: 'jsdom',
-		setupFiles: ['./tests/setup.ts'],
-		include: ['tests/**/*.test.ts']
-	}
-});
+// Root config is intentionally neutral: per-project settings (environment,
+// resolve conditions, plugins) live in vitest.workspace.ts, because options
+// set here leak into every project — e.g. the `browser` resolve condition the
+// component tests need would make the server tests load libSQL's web client.
+export default defineConfig({});

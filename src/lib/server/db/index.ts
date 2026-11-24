@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/libsql';
 import { mkdirSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import * as schema from './schema';
+import { fnv1a } from '$lib/shared/live';
 
 // Same client works two ways, controlled entirely by env vars:
 //  - Local dev (default): DATABASE_URL unset -> a local file, e.g. file:./data/conceptmap.db
@@ -214,7 +215,20 @@ const STATEMENTS = [
 		body TEXT NOT NULL,
 		created_at INTEGER NOT NULL
 	)`,
-	`CREATE INDEX IF NOT EXISTS idx_concepts_map ON concepts(map_id)`,
+	`CREATE TABLE IF NOT EXISTS map_presence (
+		client_id TEXT PRIMARY KEY,
+		map_id TEXT NOT NULL,
+		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		focus_id TEXT,
+		editing TEXT,
+		cursor_x INTEGER,
+		cursor_y INTEGER,
+		last_seen INTEGER NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_presence_map ON map_presence(map_id, last_seen)`,
+	// Lets the stale-row sweep seek instead of scanning the whole table.
+	`CREATE INDEX IF NOT EXISTS idx_presence_last_seen ON map_presence(last_seen)`,
+	`CREATE INDEX IF NOT EXISTS idx_activity_map_time ON activity_log(map_id, created_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_relations_map ON concept_relations(map_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_relations_source ON concept_relations(source_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_relations_target ON concept_relations(target_id)`,
@@ -227,22 +241,82 @@ const STATEMENTS = [
  * Ensures tables/indexes exist. Safe to call on every request — after the
  * first successful run in a given process it resolves immediately.
  */
+// Additive column migrations. Each is expected to fail harmlessly once
+// applied ("duplicate column"), so they run one by one, outside a batch.
+const COLUMN_MIGRATIONS = [
+	'ALTER TABLE concept_relations ADD COLUMN description TEXT',
+	"ALTER TABLE concept_relations ADD COLUMN direction TEXT NOT NULL DEFAULT 'forward'",
+	'ALTER TABLE concept_relations ADD COLUMN updated_by TEXT REFERENCES users(id)',
+	'ALTER TABLE concept_relations ADD COLUMN updated_at INTEGER',
+	'ALTER TABLE concepts ADD COLUMN moved_at INTEGER'
+];
+
+// Statements that depend on the migrated columns.
+const POST_MIGRATION = [
+	// Turns the live "what moved since T" query from a scan of every concept on
+	// the map (O(N) rows read per poll) into an index range seek (O(moved)).
+	'CREATE INDEX IF NOT EXISTS idx_concepts_map_moved ON concepts(map_id, moved_at)',
+	// (map_id, moved_at) serves every map_id-prefix lookup the old
+	// single-column index did, so drop that one: it was redundant, cost an
+	// extra B-tree update on every concept write, and could steer the planner
+	// away from the composite for the moves query.
+	'DROP INDEX IF EXISTS idx_concepts_map'
+];
+
+/**
+ * Fingerprint of everything the setup below does. Stored in the database
+ * once setup succeeds; any edit to the schema SQL changes it, so setup
+ * re-runs automatically on the next cold start — no version number to
+ * remember to bump. (Bump the tag if you change migrateLegacyConceptSchema's
+ * logic, since that's code rather than SQL.)
+ */
+export const SCHEMA_FINGERPRINT = fnv1a(
+	['legacy-concepts-migration:v1', ...STATEMENTS, ...COLUMN_MIGRATIONS, ...POST_MIGRATION].join('\n;\n')
+);
+
+async function storedFingerprint(): Promise<string | null> {
+	try {
+		const res = await client.execute('SELECT fingerprint FROM schema_meta WHERE id = 1');
+		return (res.rows[0]?.fingerprint as string | undefined) ?? null;
+	} catch {
+		return null; // table doesn't exist yet → never set up
+	}
+}
+
+async function runSchemaSetup(): Promise<void> {
+	await migrateLegacyConceptSchema();
+	await client.batch(STATEMENTS, 'write');
+	for (const statement of COLUMN_MIGRATIONS) await client.execute(statement).catch(() => undefined);
+	await client.batch(POST_MIGRATION, 'write');
+	await client.batch(
+		[
+			`CREATE TABLE IF NOT EXISTS schema_meta (
+				id INTEGER PRIMARY KEY CHECK (id = 1),
+				fingerprint TEXT NOT NULL,
+				applied_at INTEGER NOT NULL
+			)`,
+			{
+				sql: `INSERT INTO schema_meta (id, fingerprint, applied_at) VALUES (1, ?, ?)
+					ON CONFLICT(id) DO UPDATE SET fingerprint = excluded.fingerprint, applied_at = excluded.applied_at`,
+				args: [SCHEMA_FINGERPRINT, Date.now()]
+			}
+		],
+		'write'
+	);
+}
+
+/**
+ * Ensures tables/indexes exist. Safe to call on every request.
+ *
+ * Cost: once per process (i.e. per serverless cold start) it reads one row
+ * to compare the stored schema fingerprint; only if that differs does the
+ * full setup run (~11 sequential statements). Previously every cold start
+ * paid for the full setup.
+ */
 export function ensureSchema(): Promise<void> {
 	if (!schemaReady) {
-		schemaReady = migrateLegacyConceptSchema()
-			.then(() => client.batch(STATEMENTS, 'write'))
-			.then(() => client.execute('ALTER TABLE concept_relations ADD COLUMN description TEXT').catch(() => undefined))
-			.then(() =>
-				client
-					.execute("ALTER TABLE concept_relations ADD COLUMN direction TEXT NOT NULL DEFAULT 'forward'")
-					.catch(() => undefined)
-			)
-			.then(() =>
-				client.execute('ALTER TABLE concept_relations ADD COLUMN updated_by TEXT REFERENCES users(id)').catch(() => undefined)
-			)
-			.then(() =>
-				client.execute('ALTER TABLE concept_relations ADD COLUMN updated_at INTEGER').catch(() => undefined)
-			)
+		schemaReady = storedFingerprint()
+			.then((stored) => (stored === SCHEMA_FINGERPRINT ? undefined : runSchemaSetup()))
 			.then(
 				() => undefined,
 				(err) => {
@@ -252,4 +326,9 @@ export function ensureSchema(): Promise<void> {
 			);
 	}
 	return schemaReady;
+}
+
+/** Test hook: forget this process's "schema is ready" memo, simulating a cold start. */
+export function resetSchemaMemoForTests(): void {
+	schemaReady = null;
 }

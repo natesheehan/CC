@@ -52,7 +52,11 @@ export const concepts = sqliteTable('concepts', {
 		.notNull()
 		.references(() => users.id),
 	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+	// When x/y last changed (drags, auto-layout). Kept separate from
+	// updatedAt because moving a node isn't a content edit, but other live
+	// collaborators still need to see it move.
+	movedAt: integer('moved_at')
 });
 
 export const conceptRelations = sqliteTable('concept_relations', {
@@ -143,6 +147,23 @@ export const rateLimits = sqliteTable('rate_limits', {
 	count: integer('count').notNull()
 });
 
+// Who is currently on which map, one row per open browser tab. Rows are
+// refreshed by a heartbeat every couple of seconds; anything not seen for
+// ~20s is treated as gone. `cursorX/Y` are in graph space so they line up
+// across viewers whatever their pan/zoom.
+export const mapPresence = sqliteTable('map_presence', {
+	clientId: text('client_id').primaryKey(),
+	mapId: text('map_id').notNull(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	focusId: text('focus_id'), // concept the person has selected/open
+	editing: text('editing'), // e.g. "concept:<id>", "relation:<id>", "map"
+	cursorX: integer('cursor_x'),
+	cursorY: integer('cursor_y'),
+	lastSeen: integer('last_seen').notNull()
+});
+
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type MapRow = typeof maps.$inferSelect;
@@ -152,3 +173,4 @@ export type RelationTypeRow = typeof relationTypes.$inferSelect;
 export type RelationComment = typeof relationComments.$inferSelect;
 export type RateLimit = typeof rateLimits.$inferSelect;
 export type ActivityEntry = typeof activityLog.$inferSelect;
+export type MapPresence = typeof mapPresence.$inferSelect;

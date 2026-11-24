@@ -74,14 +74,20 @@ export async function getUserFromSession(cookies: Cookies): Promise<User | null>
 	const id = cookies.get(SESSION_COOKIE);
 	if (!id) return null;
 
-	const session = await db.select().from(sessions).where(eq(sessions.id, id)).get();
-	if (!session) return null;
+	// One round trip (session ⋈ user by primary keys) instead of two — this
+	// runs on every request, including each live-collaboration heartbeat.
+	const row = await db
+		.select({ user: users, expiresAt: sessions.expiresAt })
+		.from(sessions)
+		.innerJoin(users, eq(sessions.userId, users.id))
+		.where(eq(sessions.id, id))
+		.get();
+	if (!row) return null;
 
-	if (session.expiresAt.getTime() < Date.now()) {
+	if (row.expiresAt.getTime() < Date.now()) {
 		await db.delete(sessions).where(eq(sessions.id, id)).run();
 		return null;
 	}
 
-	const user = await db.select().from(users).where(eq(users.id, session.userId)).get();
-	return user ?? null;
+	return row.user;
 }

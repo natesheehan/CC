@@ -15,8 +15,18 @@
 	import MapHelp from '$lib/components/MapHelp.svelte';
 	import Icon, { type IconName } from '$lib/components/Icon.svelte';
 	import MapContextMenu, { type MenuItem, type MenuSection } from '$lib/components/MapContextMenu.svelte';
+	import LivePresence from '$lib/components/LivePresence.svelte';
+	import LiveToasts, { type LiveToast } from '$lib/components/LiveToasts.svelte';
+	import { LiveSession, describePeer } from '$lib/client/live.svelte';
 	import { RELATION_TYPES, mergeRelationMeta } from '$lib/shared/relations';
-	import type { ConceptInput, ClientConcept, ClientRelation, ClientRelationComment } from '$lib/shared/types';
+	import type {
+		ConceptInput,
+		ClientActivityEntry,
+		ClientConcept,
+		ClientRelation,
+		ClientRelationComment,
+		LivePeer
+	} from '$lib/shared/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -296,14 +306,67 @@
 		return url.toString();
 	}
 
+	// --- position persistence -------------------------------------------------
+	// Node moves (drags and auto-layout settling) are queued, de-duplicated
+	// against what the server already has, and flushed as one PATCH /positions
+	// request. Previously every moved node was its own request (~7 DB round
+	// trips each), so a layout settling 200 nodes cost ~200 requests and
+	// tripped the per-user write rate limit, silently dropping positions.
+	const POSITION_FLUSH_MS = 250;
+	/** Last position known to be stored server-side, per concept. */
+	const persistedPositions = new Map<string, { x: number; y: number }>();
+	const pendingPositions = new Map<string, { id: string; x: number; y: number }>();
+	let positionTimer: ReturnType<typeof setTimeout> | undefined;
+
+	$effect(() => {
+		for (const c of data.concepts) {
+			if (c.x != null && c.y != null) persistedPositions.set(c.id, { x: c.x, y: c.y });
+		}
+	});
+
 	function moveConcept(id: string, x: number, y: number) {
+		const rx = Math.round(x);
+		const ry = Math.round(y);
+		const stored = persistedPositions.get(id);
+		if (stored && stored.x === rx && stored.y === ry) {
+			pendingPositions.delete(id);
+			return;
+		}
+		pendingPositions.set(id, { id, x: rx, y: ry });
+		clearTimeout(positionTimer);
+		positionTimer = setTimeout(() => flushPositions(), POSITION_FLUSH_MS);
+	}
+
+	function flushPositions(keepalive = false) {
+		clearTimeout(positionTimer);
+		if (pendingPositions.size === 0) return;
+		const positions = [...pendingPositions.values()];
+		pendingPositions.clear();
+		for (const p of positions) persistedPositions.set(p.id, { x: p.x, y: p.y });
 		// Fire and forget: position is not a tracked content edit.
-		fetch(`/maps/${data.map.id}/concepts/${id}`, {
+		fetch(`/maps/${data.map.id}/positions`, {
 			method: 'PATCH',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ x, y })
-		}).catch(() => {});
+			body: JSON.stringify({ positions }),
+			keepalive
+		})
+			.then((res) => {
+				if (!res.ok) throw new Error(String(res.status));
+			})
+			.catch(() => {
+				// Not stored after all: forget them so the next move re-sends.
+				for (const p of positions) persistedPositions.delete(p.id);
+			});
 	}
+
+	onMount(() => {
+		const onHide = () => flushPositions(true);
+		window.addEventListener('pagehide', onHide);
+		return () => {
+			window.removeEventListener('pagehide', onHide);
+			flushPositions(true);
+		};
+	});
 
 	// --- rename map -------------------------------------------------------------
 	let editingMapName = $state(false);
@@ -501,6 +564,196 @@
 		return () => document.removeEventListener('fullscreenchange', onChange);
 	});
 
+	// --- live collaboration -------------------------------------------------
+	// Presence (who's here, what they're on, their cursor) and remote changes
+	// arrive through a paced heartbeat; see $lib/client/live.svelte.ts.
+	let live: LiveSession | undefined = $state();
+	const peers = $derived(live?.peers ?? []);
+	let showPeerCursors = $state(true);
+	const canvasPeers = $derived(showPeerCursors ? peers : peers.map((p) => ({ ...p, cursor: null })));
+	let toasts = $state<LiveToast[]>([]);
+	let commentsRefreshKey = $state(0);
+	let followingClientId = $state<string | null>(null);
+	const followedPeer = $derived(peers.find((p) => p.clientId === followingClientId) ?? null);
+
+	onMount(() => {
+		const session = new LiveSession(
+			data.map.id,
+			data.activity.map((a) => a.id),
+			{
+				onActivity: handleRemoteActivity,
+				onMoves: (moves) => {
+					for (const m of moves) if (m.x != null && m.y != null) persistedPositions.set(m.id, { x: m.x, y: m.y });
+					graphRef?.applyRemoteMoves(moves);
+				},
+				onGone: () => goto('/maps')
+			}
+		);
+		live = session;
+		session.start();
+		return () => {
+			session.stop();
+			clearTimeout(refreshTimer);
+		};
+	});
+
+	// Anything this tab has already loaded (e.g. after its own edits) isn't news.
+	$effect(() => {
+		const ids = data.activity.map((a) => a.id);
+		untrack(() => live?.markSeen(ids));
+	});
+
+	$effect(() => {
+		live?.setFocus(selectedConceptId);
+	});
+
+	const editingState = $derived.by(() => {
+		if (conceptModal?.mode === 'edit' && conceptModal.initial) return `concept:${conceptModal.initial.id}`;
+		if (relationModal?.mode === 'edit' && relationModal.initial) return `relation:${relationModal.initial.id}`;
+		return editingMapName || editingMapDescription ? 'map' : null;
+	});
+	$effect(() => {
+		live?.setEditing(editingState);
+	});
+
+	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+	function scheduleRefresh() {
+		clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => invalidateAll(), 200);
+	}
+
+	function handleRemoteActivity(entries: ClientActivityEntry[]) {
+		const myId = data.user?.id;
+		const known = new Set(data.activity.map((a) => a.id));
+		// Our own edits already reload this tab; only refetch for changes made
+		// by others (or by us in another tab).
+		if (entries.some((e) => e.userId !== myId || !known.has(e.id))) scheduleRefresh();
+		for (const e of entries) {
+			if (e.action === 'commented_relation' && commentsRelation?.id === e.entityId) commentsRefreshKey++;
+			if (e.userId !== myId) pushToast(e);
+		}
+	}
+
+	function pushToast(e: ClientActivityEntry) {
+		const text = e.summary.replace(/^(Added|Edited|Deleted|Linked|Removed|Created|Renamed|Commented) /, (m) => m.toLowerCase());
+		let action: LiveToast['action'];
+		if (e.entityType === 'concept' && !e.action.startsWith('deleted')) {
+			action = { label: 'Show', run: () => searchSelect(e.entityId) };
+		} else if (e.entityType === 'relation' && !e.action.startsWith('deleted')) {
+			action = {
+				label: 'Open',
+				run: () => {
+					const rel = data.relations.find((r) => r.id === e.entityId);
+					if (rel) openComments(rel);
+				}
+			};
+		}
+		const toast: LiveToast = { id: e.id, name: e.userName ?? 'Someone', color: e.userColor ?? '#64748b', text, action };
+		toasts = [...toasts.filter((t) => t.id !== e.id), toast].slice(-4);
+		setTimeout(() => dismissToast(e.id), 7000);
+	}
+
+	function dismissToast(id: string) {
+		toasts = toasts.filter((t) => t.id !== id);
+	}
+
+	function conceptName(id: string) {
+		return data.concepts.find((c) => c.id === id)?.name;
+	}
+	function relationName(id: string) {
+		const rel = data.relations.find((r) => r.id === id);
+		if (!rel) return undefined;
+		return `${conceptName(rel.sourceId) ?? '?'} → ${conceptName(rel.targetId) ?? '?'}`;
+	}
+	const describe = (peer: LivePeer) => describePeer(peer, conceptName, relationName);
+
+	/** Graph node a peer is on: what they're editing, else what they've selected. */
+	function peerNode(peer: LivePeer): string | null {
+		const editingId = peer.editing?.startsWith('concept:') ? peer.editing.slice(8) : null;
+		const id = editingId ?? peer.focusId;
+		return id && data.concepts.some((c) => c.id === id) ? id : null;
+	}
+
+	function goToPeer(peer: LivePeer) {
+		const nodeId = peerNode(peer);
+		if (nodeId) {
+			graphRef?.focusNode(nodeId);
+			graphRef?.flashNode(nodeId);
+		} else if (peer.cursor) {
+			graphRef?.focusPoint(peer.cursor.x, peer.cursor.y);
+		}
+	}
+
+	// Follow mode: keep the view on whatever the followed person is on.
+	// Re-centres only when their target moves noticeably, so it doesn't jitter.
+	let lastFollowTarget: { x: number; y: number } | null = null;
+	$effect(() => {
+		const peer = followedPeer;
+		if (!peer) {
+			lastFollowTarget = null;
+			// They left the map: drop follow mode (but not during a brief reconnect).
+			if (untrack(() => followingClientId && live?.status === 'live')) followingClientId = null;
+			return;
+		}
+		untrack(() => {
+			const nodeId = peerNode(peer);
+			const node = nodeId ? data.concepts.find((c) => c.id === nodeId) : null;
+			const target =
+				node && node.x != null && node.y != null ? { x: node.x, y: node.y } : peer.cursor ? { ...peer.cursor } : null;
+			if (!target) return;
+			if (lastFollowTarget && Math.hypot(target.x - lastFollowTarget.x, target.y - lastFollowTarget.y) < 80) return;
+			lastFollowTarget = target;
+			if (nodeId) graphRef?.focusNode(nodeId);
+			else graphRef?.focusPoint(target.x, target.y);
+		});
+	});
+
+	function namesOf(list: LivePeer[]): string[] {
+		return [...new Set(list.map((p) => p.name))];
+	}
+	function joinNames(names: string[]): string {
+		return names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+	}
+
+	// Collaboration warnings shown inside the edit dialogs.
+	const conceptNotice = $derived.by(() => {
+		if (conceptModal?.mode !== 'edit' || !conceptModal.initial) return null;
+		const id = conceptModal.initial.id;
+		const current = data.concepts.find((c) => c.id === id);
+		if (!current) return 'Someone deleted this concept while you were editing it.';
+		if (current.updatedAt !== conceptModal.initial.updatedAt && current.updatedById !== data.user?.id) {
+			return `${current.updatedByName ?? 'Someone'} saved changes to this concept while you were editing — saving will overwrite them.`;
+		}
+		const others = namesOf(peers.filter((p) => p.editing === `concept:${id}`));
+		if (others.length) return `${joinNames(others)} ${others.length === 1 ? 'is' : 'are'} also editing this concept right now.`;
+		return null;
+	});
+
+	const relationNotice = $derived.by(() => {
+		if (relationModal?.mode !== 'edit' || !relationModal.initial) return null;
+		const id = relationModal.initial.id;
+		const current = data.relations.find((r) => r.id === id);
+		if (!current) return 'Someone deleted this link while you were editing it.';
+		if (current.updatedAt !== relationModal.initial.updatedAt && current.updatedById !== data.user?.id) {
+			return `${current.updatedByName ?? 'Someone'} saved changes to this link while you were editing — saving will overwrite them.`;
+		}
+		const others = namesOf(peers.filter((p) => p.editing === `relation:${id}`));
+		if (others.length) return `${joinNames(others)} ${others.length === 1 ? 'is' : 'are'} also editing this link right now.`;
+		return null;
+	});
+
+	const selectedConceptPeers = $derived.by(() => {
+		if (!selectedConceptId) return [];
+		const byUser = new Map<string, { clientId: string; name: string; color: string; editing: boolean }>();
+		for (const p of peers) {
+			const editing = p.editing === `concept:${selectedConceptId}`;
+			if (!editing && p.focusId !== selectedConceptId) continue;
+			const prev = byUser.get(p.userId);
+			if (!prev || (editing && !prev.editing)) byUser.set(p.userId, { clientId: p.clientId, name: p.name, color: p.color, editing });
+		}
+		return [...byUser.values()];
+	});
+
 	// --- actions ------------------------------------------------------------
 	// Every map command is defined once here and shared by the tools panel,
 	// the right-click menu and the keyboard shortcuts.
@@ -532,6 +785,7 @@
 		| 'addConcept' | 'addLink' | 'search'
 		| 'setCenter' | 'arrange' | 'clearCenter' | 'relayout'
 		| 'zoomIn' | 'zoomOut' | 'fit' | 'rotate' | 'resetView' | 'fullscreen' | 'legend' | 'tools'
+		| 'cursors' | 'stopFollowing'
 		| 'relationTypes' | 'activity' | 'exportPng' | 'exportSvg' | 'exportJson' | 'rename' | 'describe' | 'deleteMap';
 
 	const actions: Record<ActionId, Action> = $derived({
@@ -604,6 +858,18 @@
 			icon: toolsExpanded ? 'chevronRight' : 'chevronLeft',
 			run: () => (toolsExpanded = !toolsExpanded)
 		},
+		cursors: {
+			label: showPeerCursors ? "Hide others' cursors" : "Show others' cursors",
+			icon: 'mouse',
+			active: showPeerCursors,
+			run: () => (showPeerCursors = !showPeerCursors)
+		},
+		stopFollowing: {
+			label: followedPeer ? `Stop following ${followedPeer.name}` : 'Not following anyone',
+			icon: 'eye',
+			disabled: !followedPeer,
+			run: () => (followingClientId = null)
+		},
 		relationTypes: { label: 'Relation types', icon: 'tag', run: () => (relationTypeManagerOpen = true) },
 		activity: {
 			label: 'Activity feed',
@@ -628,7 +894,8 @@
 	const TOOL_GROUPS: { title: string; ids: ActionId[] }[] = [
 		{ title: 'Create', ids: ['addConcept', 'addLink'] },
 		{ title: 'Layout', ids: ['setCenter', 'arrange', 'clearCenter', 'relayout'] },
-		{ title: 'Map', ids: ['relationTypes', 'activity', 'exportPng', 'exportSvg', 'exportJson'] }
+		{ title: 'Map', ids: ['relationTypes', 'activity', 'exportPng', 'exportSvg', 'exportJson'] },
+		{ title: 'Live', ids: ['cursors', 'stopFollowing'] }
 	];
 
 	// --- keyboard shortcuts --------------------------------------------------
@@ -641,9 +908,10 @@
 		const el = e.target as HTMLElement | null;
 		if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return;
 		if (e.key === 'Escape') {
-			// Peel back one layer at a time: fallback full screen, then the
-			// center highlight, then the selection.
-			if (pseudoFullscreen) pseudoFullscreen = false;
+			// Peel back one layer at a time: follow mode, fallback full
+			// screen, then the center highlight, then the selection.
+			if (followingClientId) followingClientId = null;
+			else if (pseudoFullscreen) pseudoFullscreen = false;
 			else if (centralConceptId) centralConceptId = null;
 			else clearSelection();
 			return;
@@ -795,6 +1063,28 @@
 				]
 			},
 			{
+				id: 'live',
+				title: peers.length > 0 ? `Live · ${namesOf(peers).length} here` : 'Live',
+				icon: 'users',
+				items: [
+					...namesOf(peers)
+						.slice(0, 5)
+						.map((name): MenuItem => {
+							const p = peers.find((x) => x.name === name)!;
+							const following = followingClientId === p.clientId;
+							return {
+								label: following ? `Stop following ${name}` : `Follow ${name}`,
+								icon: following ? 'x' : 'eye',
+								run: () => {
+									followingClientId = following ? null : p.clientId;
+									if (!following) goToPeer(p);
+								}
+							};
+						}),
+					item('cursors')
+				]
+			},
+			{
 				id: 'map',
 				title: 'Map',
 				icon: 'tag',
@@ -921,6 +1211,20 @@
 			</div>
 
 			<div class="order-2 flex shrink-0 items-center gap-2 xl:order-3">
+				{#if live}
+					<LivePresence
+						{peers}
+						status={live.status}
+						me={data.user ? { name: data.user.name, color: data.user.color } : null}
+						followingId={followingClientId}
+						{describe}
+						onGoTo={goToPeer}
+						onFollow={(p) => {
+							followingClientId = p?.clientId ?? null;
+							if (p) goToPeer(p);
+						}}
+					/>
+				{/if}
 				<MapHelp bind:open={helpOpen} />
 				{#if isOwner}
 					<button
@@ -976,6 +1280,8 @@
 					}}
 					onNodeMoved={moveConcept}
 					onContextMenu={openContextMenu}
+					peers={canvasPeers}
+					onCursorMove={(p) => live?.setCursor(p)}
 					fullscreen={isFullscreen}
 					onToggleFullscreen={toggleFullscreen}
 				/>
@@ -999,6 +1305,28 @@
 					</button>
 				</div>
 			{/if}
+
+			<!-- Follow-mode chip. -->
+			{#if followedPeer}
+				<div
+					class="follow-chip absolute left-1/2 top-3 z-20 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 rounded-full py-1 pl-3 pr-1 text-sm max-sm:left-3 max-sm:right-16 max-sm:top-[6.5rem] max-sm:max-w-none max-sm:translate-x-0"
+					style="--peer: {followedPeer.color}"
+					transition:fly={{ y: -12, duration: 200 }}
+				>
+					<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: var(--peer)" aria-hidden="true"></span>
+					<span class="truncate">Following <strong>{followedPeer.name}</strong> · {describe(followedPeer)}</span>
+					<button
+						onclick={() => (followingClientId = null)}
+						class="flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-semibold"
+						title="Stop following (Esc)"
+					>
+						<Icon name="x" class="h-3.5 w-3.5" />
+						Stop
+					</button>
+				</div>
+			{/if}
+
+			<LiveToasts {toasts} onDismiss={dismissToast} />
 
 			<!-- Top-left: search, then the legend beneath it. -->
 			{#if data.concepts.length > 0}
@@ -1158,6 +1486,7 @@
 					onDeleteRelation={deleteRelation}
 					onEditRelation={editRelation}
 					onOpenComments={openComments}
+					livePeers={selectedConceptPeers}
 				/>
 			</div>
 		{:else if rightPanel === 'activity'}
@@ -1176,6 +1505,7 @@
 		<ConceptFormModal
 			mode={conceptModal.mode}
 			initial={conceptModal.initial}
+			notice={conceptNotice}
 			onClose={() => (conceptModal = null)}
 			onSubmit={(input) =>
 				conceptModal!.mode === 'create'
@@ -1192,6 +1522,7 @@
 			customTypes={data.relationTypes}
 			relationMeta={relationMeta}
 			defaultSourceId={relationModal.sourceId}
+			notice={relationNotice}
 			onClose={() => (relationModal = null)}
 			onManageTypes={() => (relationTypeManagerOpen = true)}
 			onSubmit={(input) =>
@@ -1224,6 +1555,7 @@
 			onLoadComments={loadRelationComments}
 			onAddComment={addRelationComment}
 			onDeleteComment={deleteRelationComment}
+			refreshKey={commentsRefreshKey}
 		/>
 	{/if}
 
@@ -1388,6 +1720,24 @@
 	:global(.dark) .center-chip button {
 		background: #fbbf24;
 		color: #3b2a12;
+	}
+
+	.follow-chip {
+		border: 2px solid var(--peer);
+		background: white;
+		color: var(--memphis-ink);
+		box-shadow: 3px 3px 0 var(--peer);
+	}
+	.follow-chip button {
+		background: var(--peer);
+		color: white;
+	}
+	.follow-chip button:hover {
+		filter: brightness(0.9);
+	}
+	:global(.dark) .follow-chip {
+		background: #172033;
+		color: #e2e8f0;
 	}
 
 	.map-page:fullscreen {

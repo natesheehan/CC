@@ -6,10 +6,13 @@
 		mode,
 		initial,
 		onSubmit,
-		onClose
+		onClose,
+		notice = null
 	}: {
 		mode: 'create' | 'edit';
 		initial?: ClientConcept;
+		/** Live-collaboration warning, e.g. someone else is editing this concept. */
+		notice?: string | null;
 		onSubmit: (data: ConceptInput) => Promise<void> | void;
 		onClose: () => void;
 	} = $props();
@@ -120,6 +123,12 @@
 				{mode === 'create' ? 'Add a concept' : 'Edit concept'}
 			</h2>
 		</div>
+		{#if notice}
+			<div class="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-6 py-2.5 text-sm text-amber-800" role="status">
+				<span aria-hidden="true">⚠</span>
+				<span>{notice}</span>
+			</div>
+		{/if}
 
 		<form id="concept-form" onsubmit={handleSubmit} class="flex-1 space-y-4 overflow-y-auto px-6 py-4">
 			<div>

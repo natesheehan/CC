@@ -2,6 +2,8 @@
 	import GraphCanvas from '../src/lib/components/GraphCanvas.svelte';
 	import type { ClientConcept, ClientRelation } from '../src/lib/shared/types';
 
+	let { onNodeMoved = () => {} }: { onNodeMoved?: (id: string, x: number, y: number) => void } = $props();
+
 	let concepts: ClientConcept[] = $state([]);
 	let relations: ClientRelation[] = $state([]);
 
@@ -59,5 +61,5 @@
 </script>
 
 <div style="width: 800px; height: 600px;">
-	<GraphCanvas {concepts} {relations} onSelect={() => {}} onNodeMoved={() => {}} />
+	<GraphCanvas {concepts} {relations} onSelect={() => {}} {onNodeMoved} />
 </div>
